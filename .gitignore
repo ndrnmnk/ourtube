@@ -3,3 +3,4 @@ __pycache__
 youtube/thumbnails/*
 youtube/videos/*
 data.db
+.idea
