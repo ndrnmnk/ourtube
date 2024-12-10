@@ -27,6 +27,8 @@ def create_server():
             height = 320
         if not length:
             length = 300
+        else:
+            length = float(length)
 
         try:
             # Validate and download video
