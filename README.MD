@@ -11,4 +11,4 @@ Also, you need to make sure ffmpeg is installed. This is different for every os,
 
 To launch the server, use ```python3 main.py```
 
-Apk can be found in the Releases tab. After installing it, go to settings and insert the server ip that gets printed on every server launch.
+Apk can be found in the Releases tab (check tags if you don't see one). After installing it, go to settings and insert the server ip that gets printed on every server launch.
