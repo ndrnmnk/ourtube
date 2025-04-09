@@ -1,0 +1,5 @@
+cleaner_interval: 300
+video_bitrate: "1200k"
+audio_bitrate: "128k"
+thumbnail_lifetime: 600
+video_lifetime_multiplier: 3
