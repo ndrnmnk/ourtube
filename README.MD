@@ -4,7 +4,7 @@ This is a port of YouTube to ALL android versions. It's probably against their t
 
 ```
 git clone https://github.com/ndrnmnk/ourtube  # clone the project
-cd ourtube; python3 -m venv venv
+cd ourtube; python3 -m venv venv; source venv/bin/activate
 pip install -r youtube/requirements.txt  # install requirements
 ```
 
@@ -16,8 +16,16 @@ To launch the server, use `python3 launcher.py`
 
 ### To set up client app, do this:
 
-- Apk can be found in the `Releases` tab (check `tags` if you don't see one). Install it.
+- Download and install the app from the `Releases` tab (check `tags` if you don't see it)
 
-- Go to Ourtube settings and insert the server ip (it's printed on every server launch). Don't forget to save the settings
+- Insert the server ip (it's printed on every server launch)
 
-- You should be able to watch videos! It's also recommended to play around with other settings
+- You should be able to watch videos! It's also recommended to play around with other settings, especially on J2ME
+
+### Notes about J2ME client
+
+Most java phones support `h263` codec, which only allows certain screen resolutions.
+That`s the reason videos don't get scaled to phone screen size.
+
+If your phone supports `mpeg4` codec and `AAC` audio, there is an options for that, 
+with which everything should work correctly.

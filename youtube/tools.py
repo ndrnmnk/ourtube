@@ -34,22 +34,23 @@ def search(query, identifier, max_results=10):
         results.append({
             'title': entry.get('title'),
             'creator': entry.get('uploader'),
-            'length': entry.get('duration'),
+            'length': int(entry.get('duration')),
             'video_url': entry.get('url')
         })
     return results
 
 
-def prepare_video(url, identifier, sm, width, height, nc):
+def prepare_video(url, identifier, dtype, sm, width, height, fps):
     """Downloads the worst quality video that meets the specified width and height using yt-dlp and converts it further.
 
     Parameters:
         url (str): The URL of the video to download.
         identifier (str): A unique identifier for the video file.
+        dtype(int): Device type; defines to which format convert the video.
         sm (int): Scaling method; Look at reformat_video for details.
         width (int): The minimum desired width of the video.
         height (int): The minimum desired height of the video.
-        nc(bool): No convertion; disables convertion for devices that support h264 codec.
+        fps (int): Target fps of a video.
     """
     try:
         video_path = os.path.join("youtube", "videos", identifier)
@@ -65,6 +66,7 @@ def prepare_video(url, identifier, sm, width, height, nc):
             info = ydl.extract_info(url, download=False)
             video_width = info.get('width', 480)
             video_height = info.get('height', 320)
+            length = int(info.get('duration'))
 
             if video_height < video_width:
                 orientation_landscape = True
@@ -80,12 +82,12 @@ def prepare_video(url, identifier, sm, width, height, nc):
 
         if not orientation_landscape:
             width, height = height, width
-        reformat_video(video_path, sm, width, height, nc)
+        reformat_video(video_path, sm, dtype, width, height, fps, orientation_landscape)
         logging.info(f"Successfully downloaded video to {video_path}")
-        return orientation_landscape
+        return orientation_landscape, length
     except yt_dlp.DownloadError as e:
         logging.error(f"An error occurred while downloading the video: {e}")
-        return "landscape"
+        return "landscape", length
 
 
 def prepare_thumbnail(url, idx, thumbnail_id):
@@ -116,37 +118,82 @@ def prepare_thumbnail(url, idx, thumbnail_id):
         logging.error(f"An error occurred during downloading thumbnail: {e}")
 
 
-def reformat_video(path, scale_method, screen_w, screen_h, nc):
-    """Convert video using ffmpeg with specific arguments"""
-    if nc:
-        command = ["mv", os.path.join(path, "unprocessed.mp4"), os.path.join(path, "result.mp4")]
-    else:
-        command = [
-            "ffmpeg",
-            "-i", os.path.join(path, "unprocessed.mp4"),
-            "-c:v", "mpeg4",
-            "-preset", "fast",
-            "-b:v", config_instance.get("video_bitrate"),
-            "-c:a", "aac",
-            "-b:a", config_instance.get("audio_bitrate")
-        ]
-        if scale_method == 0:  # Scale to screen resolution while keeping aspect ratio
-            args = ["-vf", f"scale='min({screen_w},iw)':'min({screen_h},ih)':force_original_aspect_ratio=decrease"]
-        elif scale_method == 1:  # Scale and crop to exactly match screen resolution
-            args = ["-vf", (
-                    f"scale='if(gt(a,{screen_w}/{screen_h}),{screen_h}*a,{screen_w})':"
-                    f"'if(gt(a,{screen_w}/{screen_h}),{screen_h},{screen_w}/a)',"
-                    f"crop={screen_w}:{screen_h}"
-                )]
-        elif scale_method == 2:  # Stretch to screen resolution (ignore aspect ratio)
-            args = ["-vf", f"scale={screen_w}:{screen_h}"]
-        else:  # Convert without scaling
-            args = []
-        command.extend(args)
-        command.extend(["-y", os.path.join(path, "result.mp4")])
-    print(command)
-    subprocess.run(command, check=True)
+def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps, orientation_landscape):
+    """Convert video using ffmpeg with specific arguments
+    Device types:
+        0: Old android phone; 3gp+aac, no rotation
+        1: New android phone; just scale video, no rotation
+        2: Java phone; 3gp+amr, rotate if needed
+        3: Java phone; 3gp+aac, rotate if needed
+        4: Windows Mobile PDA; mp4+aac
+    Scale methods:
+        0: Scale to screen resolution while KEEPING aspect ratio
+        1: Scale and crop for perfect match
+        2: Stretch to screen resolution while IGNORING aspect ratio
+    """
+    if device_type == 2:
+        print("DEVICE TYPE 2")
+        if screen_h >= 228 and screen_w >= 352:
+            screen_w, screen_h = 352, 228
+        elif screen_h >= 144 and screen_w >= 176:
+            screen_w, screen_h = 176, 144
+        else:
+            screen_w, screen_h = 128, 96
 
+    filters = []
+    # Rotation check
+    if device_type in (2, 3, 4):
+        if (screen_w < screen_h) == orientation_landscape:
+            filters.append("transpose=1")
+    # Scaling logic
+    if scale_method == 0:
+        # filters.append(f"scale='min({screen_w},iw)':'min({screen_h},ih)':force_original_aspect_ratio=decrease")
+        filters.append(
+            f"scale='min({screen_w},iw)':"
+            f"'min({screen_h},ih)':force_original_aspect_ratio=decrease,"
+            f"pad=iw-mod(iw\\,4):ih-mod(ih\\,4):x=0:y=0"
+        )
+    elif scale_method == 1:
+        filters.append((
+            f"scale='if(gt(a,{screen_w}/{screen_h}),{screen_h}*a,{screen_w})':"
+            f"'if(gt(a,{screen_w}/{screen_h}),{screen_h},{screen_w}/a)',"
+            f"crop={screen_w}:{screen_h}"
+        ))
+    elif scale_method == 2:
+        filters.append(f"scale={screen_w}:{screen_h}")
+    # compose scale_args
+    scale_args = ["-vf", ",".join(filters)] if filters else []
+
+    audio_bitrate = config_instance.get("audio_bitrate")
+    if device_type == 0:  # Old Android (3gp + AAC)
+        conv_args = ["-c:v", "mpeg4", "-c:a", "aac", "-f", "mp4"]
+        file_ext = "mp4"
+    elif device_type == 2:  # Java (3gp + AMR), mono 8kHz audio
+        conv_args = ["-c:v", "h263", "-c:a", "libopencore_amrnb", "-ac", "1", "-ar", "8000", "-f", "3gp"]
+        audio_bitrate = "12.2k"
+        file_ext = "3gp"
+    elif device_type == 3:  # Java (3gp + AAC)
+        conv_args = ["-c:v", "mpeg4", "-c:a", "aac", "-f", "3gp"]
+        file_ext = "3gp"
+    elif device_type == 4:  # Windows Mobile
+        conv_args = ["-c:v", "wmv2", "-c:a", "wmav2", "-f", "asf"]
+        file_ext = "wmv"
+    else:  # New Android (mp4)
+        conv_args = []
+        file_ext = "mp4"
+
+    command = [
+        "ffmpeg",
+        "-i", os.path.join(path, "unprocessed.mp4"),
+        "-preset", "fast",
+        "-b:v", config_instance.get("video_bitrate"),
+        "-b:a", audio_bitrate,
+        "-r", fps,
+        *conv_args, *scale_args,
+        "-y", os.path.join(path, f"result.{file_ext}")
+    ]
+
+    subprocess.run(command, check=True)
 
 def convert_thumbnail(path):
     """Converts video thumbnails to jpg"""

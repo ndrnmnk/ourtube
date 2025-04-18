@@ -33,11 +33,11 @@ def create_server(cleaner):
     def convert_video():
         youtube_url = request.args.get('url')
         identifier = request.args.get('i')
-        nc = (request.args.get('nc') == "true")
         try:
+            dtype = int(request.args.get('dtype'))
             width = int(request.args.get('w'))
             height = int(request.args.get('h'))
-            length = float(request.args.get('l'))
+            fps = request.args.get("fps")
             sm = int(request.args.get('sm'))
         except (TypeError, ValueError):
             return jsonify({"error": "Invalid numeric parameter(s)."}), 400
@@ -51,7 +51,7 @@ def create_server(cleaner):
 
         try:
             cleaner.remove_content_at(os.path.join("youtube", "videos", identifier))
-            orientation = tools.prepare_video(youtube_url, identifier, sm, width, height, nc)
+            orientation, length = tools.prepare_video(youtube_url, identifier, dtype, sm, width, height, fps)
             cleaner.add_content(os.path.join("youtube", "videos", identifier), time.time() + length * config_instance.get("video_lifetime_multiplier"))
             return jsonify({"video_url": os.path.join("video", identifier), "orientation": orientation}), 200
         except Exception as e:
@@ -99,9 +99,10 @@ def create_server(cleaner):
             logging.warning(f"Thumbnail not found: {image_path}")
             return jsonify({"error": "Thumbnail wasn't converted"}), 404
 
-    @app.route('/video/<identifier>')
-    def stream_video(identifier):
-        file_path = os.path.join("youtube", "videos", identifier, "result.mp4")
+    @app.route('/video/<identifier>.<ext>')
+    def stream_video(identifier, ext):
+        file_path = os.path.join("youtube", "videos", identifier, f"result.{ext}")
+        mt = "video/" + ext
         try:
             video_file = open(file_path, 'rb')
         except FileNotFoundError:
@@ -112,7 +113,7 @@ def create_server(cleaner):
         range_header = request.headers.get('Range', None)
         if not range_header:
             # Serve the entire file if no Range header is provided
-            return Response(video_file.read(), mimetype="video/mp4")
+            return Response(video_file.read(), mimetype=mt)
 
         # Parse the Range header
         size = os.path.getsize(file_path)
@@ -125,9 +126,10 @@ def create_server(cleaner):
         video_file.seek(start)
 
         # Build the response
-        response = Response(generate(file_path, start, end), 206, mimetype="video/mp4")
+        response = Response(generate(file_path, start, end), 206, mimetype=mt)
         response.headers.add("Content-Range", f"bytes {start}-{end}/{size}")
         response.headers.add("Accept-Ranges", "bytes")
+        response.headers.add("Content-Length", str(end - start + 1))
         return response
 
     return app
