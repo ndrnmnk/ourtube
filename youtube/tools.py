@@ -132,7 +132,6 @@ def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps, ori
         2: Stretch to screen resolution while IGNORING aspect ratio
     """
     if device_type == 2:
-        print("DEVICE TYPE 2")
         if screen_h >= 228 and screen_w >= 352:
             screen_w, screen_h = 352, 228
         elif screen_h >= 144 and screen_w >= 176:
@@ -164,29 +163,37 @@ def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps, ori
     # compose scale_args
     scale_args = ["-vf", ",".join(filters)] if filters else []
 
-    audio_bitrate = config_instance.get("audio_bitrate")
     if device_type == 0:  # Old Android (3gp + AAC)
         conv_args = ["-c:v", "mpeg4", "-c:a", "aac", "-f", "mp4"]
+        video_bitrate = config_instance.get("android_vb")
+        audio_bitrate = config_instance.get("android_ab")
         file_ext = "mp4"
     elif device_type == 2:  # Java (3gp + AMR), mono 8kHz audio
         conv_args = ["-c:v", "h263", "-c:a", "libopencore_amrnb", "-ac", "1", "-ar", "8000", "-f", "3gp"]
-        audio_bitrate = "12.2k"
+        video_bitrate = config_instance.get("j2me_vb")
+        audio_bitrate = config_instance.get("j2me_ab")
         file_ext = "3gp"
     elif device_type == 3:  # Java (3gp + AAC)
         conv_args = ["-c:v", "mpeg4", "-c:a", "aac", "-f", "3gp"]
+        video_bitrate = config_instance.get("j2me_vb")
+        audio_bitrate = config_instance.get("j2me_ab")
         file_ext = "3gp"
     elif device_type == 4:  # Windows Mobile
         conv_args = ["-c:v", "wmv2", "-c:a", "wmav2", "-f", "asf"]
+        video_bitrate = config_instance.get("wm_vb")
+        audio_bitrate = config_instance.get("wm_ab")
         file_ext = "wmv"
     else:  # New Android (mp4)
         conv_args = []
+        video_bitrate = config_instance.get("android_vb")
+        audio_bitrate = config_instance.get("android_ab")
         file_ext = "mp4"
 
     command = [
         "ffmpeg",
         "-i", os.path.join(path, "unprocessed.mp4"),
         "-preset", "fast",
-        "-b:v", config_instance.get("video_bitrate"),
+        "-b:v", video_bitrate,
         "-b:a", audio_bitrate,
         "-r", fps,
         *conv_args, *scale_args,
