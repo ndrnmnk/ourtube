@@ -99,7 +99,7 @@ def create_server(cleaner):
             logging.warning(f"Thumbnail not found: {image_path}")
             return jsonify({"error": "Thumbnail wasn't converted"}), 404
 
-    @app.route('/video/<identifier>.<ext>')
+    @app.route('/video/<identifier>/<ext>')
     def stream_video(identifier, ext):
         file_path = os.path.join("youtube", "videos", identifier, f"result.{ext}")
         mt = "video/" + ext
