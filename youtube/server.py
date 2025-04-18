@@ -102,7 +102,13 @@ def create_server(cleaner):
     @app.route('/video/<identifier>/<ext>')
     def stream_video(identifier, ext):
         file_path = os.path.join("youtube", "videos", identifier, f"result.{ext}")
-        mt = "video/" + ext
+
+        mime_types = {
+            "mp4": "video/mp4",
+            "3gp": "video/3gpp",
+            "wmv": "video/x-ms-wmv"
+        }
+        mt = mime_types.get(ext.lower(), "application/octet-stream")
         try:
             video_file = open(file_path, 'rb')
         except FileNotFoundError:
@@ -128,6 +134,7 @@ def create_server(cleaner):
         # Build the response
         response = Response(generate(file_path, start, end), 206, mimetype=mt)
         response.headers.add("Content-Range", f"bytes {start}-{end}/{size}")
+        response.headers.add("Content-Disposition", "inline")
         response.headers.add("Accept-Ranges", "bytes")
         response.headers.add("Content-Length", str(end - start + 1))
         return response
