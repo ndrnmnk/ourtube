@@ -169,7 +169,7 @@ def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps, ori
         audio_bitrate = config_instance.get("android_ab")
         file_ext = "mp4"
     elif device_type == 2:  # Java (3gp + AMR), mono 8kHz audio
-        conv_args = ["-c:v", "h263", "-c:a", "libopencore_amrnb", "-ac", "1", "-ar", "8000", "-f", "3gp"]
+        conv_args = ["-r", "12", "-c:v", "h263", "-profile:v", "0", "-c:a", "libopencore_amrnb", "-ac", "1", "-ar", "8000", "-f", "3gp", "-metadata", "major_brand=3gp5", "-movflags", "+faststart"]
         video_bitrate = config_instance.get("j2me_vb")
         audio_bitrate = config_instance.get("j2me_ab")
         file_ext = "3gp"
@@ -222,3 +222,6 @@ def convert_thumbnail(path):
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Error occurred while processing the image: {e}")
+
+
+
