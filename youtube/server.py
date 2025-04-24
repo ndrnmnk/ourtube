@@ -99,9 +99,9 @@ def create_server(cleaner):
             logging.warning(f"Thumbnail not found: {image_path}")
             return jsonify({"error": "Thumbnail wasn't converted"}), 404
 
-    @app.route('/video/<identifier>/<ext>')
+    @app.route('/video/<identifier>.<ext>')
     def stream_video(identifier, ext):
-        no_chunks = (request.args.get('dechunk') == "1")
+        raw = (request.args.get('raw') == "1")
         file_path = os.path.join("youtube", "videos", identifier, f"result.{ext}")
 
         mime_types = {
@@ -110,6 +110,10 @@ def create_server(cleaner):
             "wmv": "video/x-ms-wmv"
         }
         mt = mime_types.get(ext.lower(), "application/octet-stream")
+
+        if raw:
+            return send_file(file_path, mt)
+
         try:
             video_file = open(file_path, 'rb')
         except FileNotFoundError:
@@ -118,31 +122,32 @@ def create_server(cleaner):
 
         # Handle byte-range requests for streaming
         range_header = request.headers.get('Range', None)
-        if range_header and not no_chunks:
-            # Parse the Range header
-            size = os.path.getsize(file_path)
-            byte_range = range_header.strip().split('=')[-1]
-            start, end = byte_range.split('-')
-
-            start = int(start)
-            end = int(end) if end else size - 1
-
-            video_file.seek(start)
-
-            # Build the response
-            response = Response(generate(file_path, start, end), 206, mimetype=mt)
-            response.headers.add("Content-Range", f"bytes {start}-{end}/{size}")
-            response.headers.add("Content-Length", str(end - start + 1))
-        else:
+        if not range_header:
             # Serve the entire file if no Range header is provided
             data = video_file.read()
-            response = Response(data, 206, mimetype=mt)
-            response.headers.add("Content-Range", f"bytes 0-{len(data)-1}/{len(data)}")
+            response = Response(data, 200, mimetype=mt)
+            response.headers.add("Cache-Control", "no-store")
+            response.headers.add("Accept-Ranges", "bytes")
             response.headers.add("Content-Length", str(len(data)))
+            return response
 
+        # Parse the Range header
+        size = os.path.getsize(file_path)
+        byte_range = range_header.strip().split('=')[-1]
+        start, end = byte_range.split('-')
+
+        start = int(start)
+        end = int(end) if end else size - 1
+
+        video_file.seek(start)
+
+        # Build the response
+        response = Response(generate(file_path, start, end), 206, mimetype=mt)
+        response.headers.add("Cache-Control", "no-store")
+        response.headers.add("Content-Range", f"bytes {start}-{end}/{size}")
         response.headers.add("Content-Disposition", "inline")
         response.headers.add("Accept-Ranges", "bytes")
-
+        response.headers.add("Content-Length", str(end - start + 1))
         return response
 
     return app
