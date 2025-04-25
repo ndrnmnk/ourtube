@@ -111,9 +111,6 @@ def create_server(cleaner):
         }
         mt = mime_types.get(ext.lower(), "application/octet-stream")
 
-        if raw:
-            return send_file(file_path, mt)
-
         try:
             video_file = open(file_path, 'rb')
         except FileNotFoundError:
@@ -122,14 +119,9 @@ def create_server(cleaner):
 
         # Handle byte-range requests for streaming
         range_header = request.headers.get('Range', None)
-        if not range_header:
-            # Serve the entire file if no Range header is provided
-            data = video_file.read()
-            response = Response(data, 200, mimetype=mt)
-            response.headers.add("Cache-Control", "no-store")
-            response.headers.add("Accept-Ranges", "bytes")
-            response.headers.add("Content-Length", str(len(data)))
-            return response
+        if not range_header or raw:
+            response = send_file(os.path.join("videos", identifier, f"result.{ext}"), mimetype=mt, as_attachment=False, conditional=True)
+            response.headers.pop('Transfer-Encoding', None)
 
         # Parse the Range header
         size = os.path.getsize(file_path)
