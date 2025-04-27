@@ -29,3 +29,5 @@ That`s the reason videos don't get scaled to phone screen size.
 
 If your phone supports `mpeg4` codec and `AAC` audio, there is an options for that, 
 with which everything should work correctly.
+
+Also note that it's absolutely not stable - it can stop working just because it wants to.

@@ -50,7 +50,7 @@ def prepare_video(url, identifier, dtype, sm, width, height, fps):
         sm (int): Scaling method; Look at reformat_video for details.
         width (int): The minimum desired width of the video.
         height (int): The minimum desired height of the video.
-        fps (int): Target fps of a video.
+        fps (str): Target fps of a video.
     """
     try:
         video_path = os.path.join("youtube", "videos", identifier)
@@ -82,9 +82,9 @@ def prepare_video(url, identifier, dtype, sm, width, height, fps):
 
         if not orientation_landscape:
             width, height = height, width
-        reformat_video(video_path, sm, dtype, width, height, fps, orientation_landscape)
+        file_ext = reformat_video(video_path, sm, dtype, width, height, fps, orientation_landscape)
         logging.info(f"Successfully downloaded video to {video_path}")
-        return orientation_landscape, length
+        return orientation_landscape, length, file_ext
     except yt_dlp.DownloadError as e:
         logging.error(f"An error occurred while downloading the video: {e}")
         return "landscape", length
@@ -199,8 +199,8 @@ def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps, ori
         *conv_args, *scale_args,
         "-y", os.path.join(path, f"result.{file_ext}")
     ]
-
     subprocess.run(command, check=True)
+    return file_ext
 
 def convert_thumbnail(path):
     """Converts video thumbnails to jpg"""

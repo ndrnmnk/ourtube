@@ -49,14 +49,14 @@ def create_server(cleaner):
         if not is_valid_uuid(identifier):
             return jsonify({"error": "Not a valid uuid.", "video_url": None}), 403
 
-        try:
-            cleaner.remove_content_at(os.path.join("youtube", "videos", identifier))
-            orientation, length = tools.prepare_video(youtube_url, identifier, dtype, sm, width, height, fps)
-            cleaner.add_content(os.path.join("youtube", "videos", identifier), time.time() + length * config_instance.get("video_lifetime_multiplier"))
-            return jsonify({"video_url": os.path.join("video", identifier), "orientation": orientation}), 200
-        except Exception as e:
-            logging.error(f"Failed to convert video: {e}")
-            return jsonify({"error": "Failed to convert video", "video_url": None}), 500
+        # try:
+        cleaner.remove_content_at(os.path.join("youtube", "videos", identifier))
+        orientation, length, ext = tools.prepare_video(youtube_url, identifier, dtype, sm, width, height, fps)
+        cleaner.add_content(os.path.join("youtube", "videos", identifier), time.time() + length * config_instance.get("video_lifetime_multiplier"))
+        return jsonify({"video_url": os.path.join("video", identifier + '.' + ext), "orientation": orientation}), 200
+        # except Exception as e:
+        #     logging.error(f"Failed to convert video: {e}")
+        #     return jsonify({"error": "Failed to convert video", "video_url": None}), 500
 
     @app.route('/search', methods=['GET'])
     def search():
@@ -111,17 +111,18 @@ def create_server(cleaner):
         }
         mt = mime_types.get(ext.lower(), "application/octet-stream")
 
-        try:
-            video_file = open(file_path, 'rb')
-        except FileNotFoundError:
-            logging.warning(f"Video not found: {file_path}")
-            return jsonify({"error": "Video not found"}), 404
-
         # Handle byte-range requests for streaming
         range_header = request.headers.get('Range', None)
         if not range_header or raw:
             response = send_file(os.path.join("videos", identifier, f"result.{ext}"), mimetype=mt, as_attachment=False, conditional=True)
             response.headers.pop('Transfer-Encoding', None)
+            return response
+
+        try:
+            video_file = open(file_path, 'rb')
+        except FileNotFoundError:
+            logging.warning(f"Video not found: {file_path}")
+            return jsonify({"error": "Video not found"}), 404
 
         # Parse the Range header
         size = os.path.getsize(file_path)
