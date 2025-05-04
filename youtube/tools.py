@@ -31,10 +31,14 @@ def search(query, identifier, max_results=10):
 
     results = []
     for idx, entry in enumerate(info.get('entries', [])):
+        try:
+            leng = int(entry.get('duration'))
+        except TypeError:
+            leng = 0
         results.append({
             'title': entry.get('title'),
             'creator': entry.get('uploader'),
-            'length': int(entry.get('duration')),
+            'length': leng,
             'video_url': entry.get('url')
         })
     return results
@@ -50,14 +54,10 @@ def prepare_video(url, identifier, dtype, sm, width, height, fps):
         sm (int): Scaling method; Look at reformat_video for details.
         width (int): The minimum desired width of the video.
         height (int): The minimum desired height of the video.
-        fps (int): Target fps of a video.
+        fps (str): Target fps of a video.
     """
     try:
         video_path = os.path.join("youtube", "videos", identifier)
-
-        # Remove temporary file if it exists
-        if os.path.exists(video_path):
-            shutil.rmtree(video_path)
 
         ydl_options = {'quiet': True}
 
@@ -82,9 +82,9 @@ def prepare_video(url, identifier, dtype, sm, width, height, fps):
 
         if not orientation_landscape:
             width, height = height, width
-        reformat_video(video_path, sm, dtype, width, height, fps, orientation_landscape)
+        file_ext = reformat_video(video_path, sm, dtype, width, height, fps, orientation_landscape)
         logging.info(f"Successfully downloaded video to {video_path}")
-        return orientation_landscape, length
+        return orientation_landscape, length, file_ext
     except yt_dlp.DownloadError as e:
         logging.error(f"An error occurred while downloading the video: {e}")
         return "landscape", length
@@ -132,7 +132,6 @@ def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps, ori
         2: Stretch to screen resolution while IGNORING aspect ratio
     """
     if device_type == 2:
-        print("DEVICE TYPE 2")
         if screen_h >= 228 and screen_w >= 352:
             screen_w, screen_h = 352, 228
         elif screen_h >= 144 and screen_w >= 176:
@@ -164,36 +163,44 @@ def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps, ori
     # compose scale_args
     scale_args = ["-vf", ",".join(filters)] if filters else []
 
-    audio_bitrate = config_instance.get("audio_bitrate")
     if device_type == 0:  # Old Android (3gp + AAC)
         conv_args = ["-c:v", "mpeg4", "-c:a", "aac", "-f", "mp4"]
+        video_bitrate = config_instance.get("android_vb")
+        audio_bitrate = config_instance.get("android_ab")
         file_ext = "mp4"
     elif device_type == 2:  # Java (3gp + AMR), mono 8kHz audio
-        conv_args = ["-c:v", "h263", "-c:a", "libopencore_amrnb", "-ac", "1", "-ar", "8000", "-f", "3gp"]
-        audio_bitrate = "12.2k"
+        conv_args = ["-r", "12", "-c:v", "h263", "-profile:v", "0", "-c:a", "libopencore_amrnb", "-ac", "1", "-ar", "8000", "-f", "3gp", "-metadata", "major_brand=3gp5", "-movflags", "+faststart"]
+        video_bitrate = config_instance.get("j2me_vb")
+        audio_bitrate = config_instance.get("j2me_ab")
         file_ext = "3gp"
     elif device_type == 3:  # Java (3gp + AAC)
         conv_args = ["-c:v", "mpeg4", "-c:a", "aac", "-f", "3gp"]
+        video_bitrate = config_instance.get("j2me_vb")
+        audio_bitrate = config_instance.get("j2me_ab")
         file_ext = "3gp"
     elif device_type == 4:  # Windows Mobile
         conv_args = ["-c:v", "wmv2", "-c:a", "wmav2", "-f", "asf"]
+        video_bitrate = config_instance.get("wm_vb")
+        audio_bitrate = config_instance.get("wm_ab")
         file_ext = "wmv"
     else:  # New Android (mp4)
         conv_args = []
+        video_bitrate = config_instance.get("android_vb")
+        audio_bitrate = config_instance.get("android_ab")
         file_ext = "mp4"
 
     command = [
         "ffmpeg",
         "-i", os.path.join(path, "unprocessed.mp4"),
         "-preset", "fast",
-        "-b:v", config_instance.get("video_bitrate"),
+        "-b:v", video_bitrate,
         "-b:a", audio_bitrate,
         "-r", fps,
         *conv_args, *scale_args,
         "-y", os.path.join(path, f"result.{file_ext}")
     ]
-
     subprocess.run(command, check=True)
+    return file_ext
 
 def convert_thumbnail(path):
     """Converts video thumbnails to jpg"""
