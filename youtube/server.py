@@ -1,7 +1,9 @@
-from flask import Flask, Response, request, send_file, jsonify
+from flask import Flask, Response, request, send_file, jsonify, stream_with_context
 from urllib.parse import unquote
 from config import config_instance
 from youtube import tools
+from concurrent.futures import ThreadPoolExecutor
+import flask.json as json
 import logging
 import time
 import uuid
@@ -15,10 +17,11 @@ def is_valid_uuid(s):
         return False
 
 def generate(file_path, start, end):
+    """ Generator to yield chunks of the video file for streaming. """
     with open(file_path, 'rb') as f:
         f.seek(start)
         remaining = end - start + 1
-        chunk_size = 8192
+        chunk_size = 8192  # 16KB chunks for streaming
         while remaining > 0:
             chunk = f.read(min(chunk_size, remaining))
             if not chunk:
@@ -49,14 +52,27 @@ def create_server(cleaner):
         if not is_valid_uuid(identifier):
             return jsonify({"error": "Not a valid uuid.", "video_url": None}), 403
 
-        try:
-            cleaner.remove_content_at(os.path.join("youtube", "videos", identifier))
-            orientation, length = tools.prepare_video(youtube_url, identifier, dtype, sm, width, height, fps)
-            cleaner.add_content(os.path.join("youtube", "videos", identifier), time.time() + length * config_instance.get("video_lifetime_multiplier"))
-            return jsonify({"video_url": os.path.join("video", identifier), "orientation": orientation}), 200
-        except Exception as e:
-            logging.error(f"Failed to convert video: {e}")
-            return jsonify({"error": "Failed to convert video", "video_url": None}), 500
+        cleaner.remove_content_at(os.path.join("youtube", "videos", identifier))
+
+        def generate_response():
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(tools.prepare_video, youtube_url, identifier, dtype, sm, width, height, fps)
+
+                # While the task is running
+                while not future.done():
+                    yield " \n\n"
+
+                # Get the result when done
+                try:
+                    result = future.result()
+                    res = json.dumps({"video_url": os.path.join("video", identifier + '.' + result[2]), "orientation": result[0]}) + "\n"
+                    cleaner.add_content(os.path.join("youtube", "videos", identifier), time.time() + result[1] * config_instance.get("video_lifetime_multiplier"))
+                    yield res
+                except Exception as e:
+                    logging.error(e)
+                    yield json.dumps({"error": "Failed to convert video", "video_url": None}) + "\n"
+
+        return Response(stream_with_context(generate_response()), mimetype="application/json")
 
     @app.route('/search', methods=['GET'])
     def search():
@@ -101,35 +117,50 @@ def create_server(cleaner):
 
     @app.route('/video/<identifier>.<ext>')
     def stream_video(identifier, ext):
+        raw = (request.args.get('raw') == "1")
         file_path = os.path.join("youtube", "videos", identifier, f"result.{ext}")
-        mt = "video/" + ext
-        try:
-            video_file = open(file_path, 'rb')
-        except FileNotFoundError:
-            logging.warning(f"Video not found: {file_path}")
-            return jsonify({"error": "Video not found"}), 404
+
+        mime_types = {
+            "mp4": "video/mp4",
+            "3gp": "video/3gpp",
+            "wmv": "video/x-ms-wmv"
+        }
+        mt = mime_types.get(ext.lower(), "application/octet-stream")
 
         # Handle byte-range requests for streaming
         range_header = request.headers.get('Range', None)
-        if not range_header:
-            # Serve the entire file if no Range header is provided
-            return Response(video_file.read(), mimetype=mt)
+        if not range_header or raw:
+            response = send_file(os.path.join("videos", identifier, f"result.{ext}"), mimetype=mt, as_attachment=False, conditional=True)
+            response.headers.pop('Transfer-Encoding', None)  # Ensuring no Transfer-Encoding is applied
+            return response
 
-        # Parse the Range header
-        size = os.path.getsize(file_path)
-        byte_range = range_header.strip().split('=')[-1]
-        start, end = byte_range.split('-')
+        # Parse the Range header if present
+        try:
+            size = os.path.getsize(file_path)
+            range_parts = range_header.strip().split('=')[-1]
+            start, end = range_parts.split('-')
 
-        start = int(start)
-        end = int(end) if end else size - 1
+            start = int(start)
+            end = int(end) if end else size - 1
 
-        video_file.seek(start)
+            if start >= size:
+                raise ValueError("Start range is beyond file size.")
+            if end >= size:
+                end = size - 1
+        except (ValueError, IndexError):
+            logging.error("Invalid Range header.")
+            return jsonify({"error": "Invalid range"}), 416  # HTTP 416 Range Not Satisfiable
 
-        # Build the response
-        response = Response(generate(file_path, start, end), 206, mimetype=mt)
-        response.headers.add("Content-Range", f"bytes {start}-{end}/{size}")
-        response.headers.add("Accept-Ranges", "bytes")
-        response.headers.add("Content-Length", str(end - start + 1))
-        return response
+        # Open the video file and generate a streaming response
+        try:
+            response = Response(generate(file_path, start, end), status=206, mimetype=mt)
+            response.headers.add("Content-Range", f"bytes {start}-{end}/{size}")
+            response.headers.add("Accept-Ranges", "bytes")
+            # response.headers.add("Content-Length", str(end - start + 1))
+            response.headers.add("Connection", "keep-alive")
+            return response
+        except FileNotFoundError:
+            logging.warning(f"Video not found: {file_path}")
+            return jsonify({"error": "Video not found"}), 404
 
     return app
