@@ -1,13 +1,15 @@
 import threading
 import logging
 import time
+from arp import arp
 from youtube.server import create_server
 from cleaner import Cleaner
 
 
+
 def run_flask_server(db_cleaner):
     """Function to run the Flask server"""
-    app = create_server(db_cleaner)
+    app = create_server(db_cleaner, arp())
     app.run(host='0.0.0.0', port=5001)
 
 

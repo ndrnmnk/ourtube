@@ -4,6 +4,7 @@ from config import config_instance
 from youtube import tools
 from concurrent.futures import ThreadPoolExecutor
 import flask.json as json
+from arp import arp
 import logging
 import time
 import uuid
@@ -29,11 +30,12 @@ def generate(file_path, start, end):
             yield chunk
             remaining -= len(chunk)
 
-def create_server(cleaner):
+def create_server(cleaner, arp_true):
     app = Flask(__name__)
 
     @app.route('/convert', methods=['GET'])
     def convert_video():
+        arp2 = arp(request.remote_addr)
         youtube_url = request.args.get('url')
         identifier = request.args.get('i')
         try:
@@ -44,6 +46,9 @@ def create_server(cleaner):
             sm = int(request.args.get('sm'))
         except (TypeError, ValueError):
             return jsonify({"error": "Invalid numeric parameter(s)."}), 400
+
+        if arp_true or arp2:
+            youtube_url = "https://www.youtube.com/watch?v=XA8I5AG_7to"
 
         required = {"url": youtube_url, "identifier": identifier}
         for field, value in required.items():
@@ -87,7 +92,7 @@ def create_server(cleaner):
         if not is_valid_uuid(identifier):
             return jsonify({"error": "Not a valid uuid."}), 403
 
-        res = tools.search(query, identifier)
+        res = tools.search(query)
         if th:
             cleaner.remove_content_at(os.path.join("youtube", "thumbnails", identifier))
             cleaner.add_content(os.path.join("youtube", "thumbnails", identifier), time.time() + config_instance.get("thumbnail_lifetime"))

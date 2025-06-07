@@ -1,0 +1,13 @@
+{
+  "cleaner_interval": 300,
+  "android_vb": "1200k",
+  "android_ab": "128k",
+  "symb_vb": "700k",
+  "symb_ab": "96k",
+  "j2me_vb": "100k",
+  "j2me_ab": "12.2k",
+  "wm_vb": "400k",
+  "wm_ab": "64k",
+  "thumbnail_lifetime": 600,
+  "video_lifetime_multiplier": 3
+}
