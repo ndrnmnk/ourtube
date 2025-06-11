@@ -69,11 +69,20 @@ def prepare_video(url, identifier, dtype, sm, width, height, fps):
         ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdin=ydl_proc.stdout)
         ydl_proc.stdout.close()  # Allow yt-dlp to receive SIGPIPE if ffmpeg exits
         ffmpeg_proc.communicate()
+        ydl_proc.wait()
+
+        if ydl_proc.returncode != 0:
+            logging.error(f"yt-dlp exited with code {ydl_proc.returncode}")
+            return "err"
+        if ffmpeg_proc.returncode != 0:
+            logging.error(f"ffmpeg exited with code {ffmpeg_proc.returncode}")
+            return "err"
+
         logging.info(f"Successfully downloaded video to {video_path}")
         return file_ext
-    except yt_dlp.DownloadError as e:
+    except Exception as e:
         logging.error(f"An error occurred while downloading the video: {e}")
-        return ".3gp"
+        return "err"
 
 def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps):
     """Convert video using ffmpeg with specific arguments

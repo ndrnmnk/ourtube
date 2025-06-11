@@ -71,12 +71,16 @@ def create_server(cleaner, arp_true):
                 # Get the result when done
                 try:
                     file_ext = future.result()
+                    if file_ext == "err":
+                        yield json.dumps({"error": "Failed to convert video"}) + "\n"
+                        return
                     res = json.dumps({"video_url": os.path.join("video", identifier + '.' + file_ext)}) + "\n"
                     cleaner.add_content(os.path.join("youtube", "videos", identifier), time.time() + length * config_instance.get("video_lifetime_multiplier"))
                     yield res
+                    return
                 except Exception as e:
                     logging.error(e)
-                    yield json.dumps({"error": "Failed to convert video", "video_url": None}) + "\n"
+                    yield json.dumps({"error": "Failed to convert video"}) + "\n"
 
         return Response(stream_with_context(generate_response()), mimetype="application/json")
 
