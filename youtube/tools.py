@@ -55,45 +55,33 @@ def prepare_video(url, identifier, dtype, sm, width, height, fps):
         video_path = os.path.join("youtube", "videos", identifier)
         os.makedirs(video_path, exist_ok=True)
 
-        ydl_options = {'quiet': True}
-
-        # yt-dlp video format filter for the worst quality meeting the requirements
-        with yt_dlp.YoutubeDL(ydl_options) as ydl:
-            info = ydl.extract_info(url, download=False)
-            video_width = info.get('width', 480)
-            video_height = info.get('height', 320)
-            length = int(info.get('duration'))
-
-            if video_height < video_width:
-                orientation_landscape = True
-                format_filter = f"worstvideo[ext=mp4][width>={width}][vcodec^=avc1]+bestaudio[ext=m4a]/mp4"
-            else:
-                orientation_landscape = False
-                format_filter = f"worstvideo[ext=mp4][height>={height}][vcodec^=avc1]+bestaudio[ext=m4a]/mp4"
+        format_filter = (
+            f"bestvideo[ext=mp4][vcodec^=avc1]"
+            f"[height>={min(height, width)}][width>={min(width, height)}]"
+            f"[height<={max(height, width)}][width<={max(width, height)}]"
+            f"+bestaudio[ext=m4a]/mp4"
+        )
 
         ydl_cmd = ["yt-dlp", "--quiet", "-f", format_filter, "-o", "-", url]
 
-        if not orientation_landscape:
-            width, height = height, width
-
-        ffmpeg_cmd, file_ext = reformat_video(video_path, sm, dtype, width, height, fps, orientation_landscape)
+        ffmpeg_cmd, file_ext = reformat_video(video_path, sm, dtype, width, height, fps)
         ydl_proc = subprocess.Popen(ydl_cmd, stdout=subprocess.PIPE)
         ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdin=ydl_proc.stdout)
         ydl_proc.stdout.close()  # Allow yt-dlp to receive SIGPIPE if ffmpeg exits
         ffmpeg_proc.communicate()
         logging.info(f"Successfully downloaded video to {video_path}")
-        return orientation_landscape, length, file_ext
+        return file_ext
     except yt_dlp.DownloadError as e:
         logging.error(f"An error occurred while downloading the video: {e}")
-        return "landscape", length
+        return ".3gp"
 
-def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps, orientation_landscape):
+def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps):
     """Convert video using ffmpeg with specific arguments
     Device types:
-        0: Old android phone; 3gp+aac, no rotation
-        1: New android phone; just scale video, no rotation
-        2: Java phone; 3gp+amr, rotate if needed
-        3: Java phone; 3gp+aac, rotate if needed
+        0: Old android phone
+        1: New android phone; just scale video
+        2: Java phone; 3gp+amr
+        3: Symbian phone; 3gp+aac
         4: Windows Mobile PDA; mp4+aac
     Scale methods:
         0: Scale to screen resolution while KEEPING aspect ratio
@@ -118,18 +106,14 @@ def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps, ori
             screen_w, screen_h = 128, 96
 
     filters = []
-    # Rotation check
-    if device_type in (2, 3, 4):
-        if (screen_w < screen_h) == orientation_landscape:
-            filters.append("transpose=1")
     # Scaling logic
     if scale_method == 0:
-        # filters.append(f"scale='min({screen_w},iw)':'min({screen_h},ih)':force_original_aspect_ratio=decrease")
-        filters.append(
-            f"scale='min({screen_w},iw)':"
-            f"'min({screen_h},ih)':force_original_aspect_ratio=decrease,"
-            f"pad=iw-mod(iw\\,4):ih-mod(ih\\,4):x=0:y=0"
-        )
+        if scale_method == 0:
+            filters.append(
+                f"scale='min({screen_w},iw)':"
+                f"'min({screen_h},ih)':force_original_aspect_ratio=decrease,"
+                f"pad=ceil(iw/4)*4:ceil(ih/4)*4"
+            )
     elif scale_method == 1:
         filters.append((
             f"scale='if(gt(a,{screen_w}/{screen_h}),{screen_h}*a,{screen_w})':"

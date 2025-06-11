@@ -44,6 +44,7 @@ def create_server(cleaner, arp_true):
             height = int(request.args.get('h'))
             fps = request.args.get("fps")
             sm = int(request.args.get('sm'))
+            length = int(request.args.get('len'))
         except (TypeError, ValueError):
             return jsonify({"error": "Invalid numeric parameter(s)."}), 400
 
@@ -69,9 +70,9 @@ def create_server(cleaner, arp_true):
 
                 # Get the result when done
                 try:
-                    result = future.result()
-                    res = json.dumps({"video_url": os.path.join("video", identifier + '.' + result[2]), "orientation": result[0]}) + "\n"
-                    cleaner.add_content(os.path.join("youtube", "videos", identifier), time.time() + result[1] * config_instance.get("video_lifetime_multiplier"))
+                    file_ext = future.result()
+                    res = json.dumps({"video_url": os.path.join("video", identifier + '.' + file_ext)}) + "\n"
+                    cleaner.add_content(os.path.join("youtube", "videos", identifier), time.time() + length * config_instance.get("video_lifetime_multiplier"))
                     yield res
                 except Exception as e:
                     logging.error(e)
