@@ -1,10 +1,10 @@
 # OurTube
 
-**OurTube** is a lightweight YouTube frontend designed for **Android devices (all API levels)** and **J2ME feature phones**. It enables users to search, stream, and watch YouTube videos on legacy hardware that normally can't access modern video platforms.
+**OurTube** is a lightweight YouTube frontend designed for **Android devices** and **J2ME feature phones**. It enables users to search, stream, and watch YouTube videos on legacy hardware that normally can't access modern video platforms. Also, watching videos from other platforms is supported (but no searching).
 
 > ⚠️ **Disclaimer**  
-> Using this software to download or stream YouTube content that does not explicitly permit redistribution may violate [YouTube’s Terms of Service](https://www.youtube.com/t/terms). This project is intended for educational and personal use only. The maintainers are not responsible for any misuse and do not condone illegal or unauthorized use.
-
+> Using this software to download or stream content from YouTube or other websites may violate their respective Terms of Service.  
+> This project is intended for educational and personal use only. The maintainers are not responsible for any misuse and do not condone illegal or unauthorized use of the software.
 ---
 
 ## Features
@@ -12,11 +12,11 @@
 - Works on Android version **1.0 to 15** (tested from Android 2.3.6 to 15)
 - Compatible with J2ME phones (tested on **Nokia 6300** and **Nokia N85**)
 - Server handles:
-  - YouTube **search**
-  - **Video streaming** via progressive HTTP download
-  - **Thumbnail loading**
-- Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for fetching content and `ffmpeg` for transcoding
-- **No YouTube account or API key required**
+  - YouTube search
+  - Playback from YouTube and other yt-dlp supported websites via HTTP progressive download
+  - Thumbnail loading (Android only)
+- Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for fetching content and [ffmpeg](https://ffmpeg.org/) for transcoding
+- **No login or API key required**
 
 ---
 
@@ -74,5 +74,7 @@ You should try enabling it in the settings.
 ---
 
 ## Footage
+
+This is outdated, now it's faster:
 
 ![Demo](https://raw.githubusercontent.com/ndrnmnk/ndrnmnk/main/ourtube.gif)
