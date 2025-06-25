@@ -1,6 +1,6 @@
 # OurTube
 
-**OurTube** is a lightweight YouTube frontend designed for **Android devices** and **J2ME feature phones**. It enables users to search, stream, and watch YouTube videos on legacy hardware that normally can't access modern video platforms. Also, watching videos from other platforms is supported (but no searching).
+**OurTube** is a lightweight media app designed for **Android devices** and **J2ME feature phones**. It enables users to search, stream, and watch videos from YouTube and other platforms on legacy hardware that normally can't access them.
 
 > ⚠️ **Disclaimer**  
 > Using this software to download or stream content from YouTube or other websites may violate their respective Terms of Service.  
@@ -13,7 +13,7 @@
 - Compatible with J2ME phones (tested on **Nokia 6300** and **Nokia N85**)
 - Server handles:
   - YouTube search
-  - Playback from YouTube and other yt-dlp supported websites via HTTP progressive download
+  - Video playback from YouTube and other yt-dlp supported websites via HTTP progressive download
   - Thumbnail loading (Android only)
 - Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for fetching content and [ffmpeg](https://ffmpeg.org/) for transcoding
 - **No login or API key required**
@@ -26,14 +26,13 @@
 
 ```bash
 git clone https://github.com/ndrnmnk/ourtube
-cd ourtube
-python3 -m venv venv
-source venv/bin/activate
-pip install -r youtube/requirements.txt
+setup.sh
 ```
-Make sure ffmpeg is installed and functional.
+Make sure ffmpeg is installed, functional and available in you system `PATH`.
 
-Edit `config.json` if you want to change server settings (default settings usually work fine).
+---
+
+Edit `config.json` if you want to change server settings (default ones usually work fine).
 
 To launch the server:
 
@@ -61,6 +60,8 @@ If your device supports `mpeg4` (e.g., Symbian-based phones), enable it to get b
 Some devices do support `h264` codec, which completely avoids conversion, significantly reducing wait times. 
 You should try enabling it in the settings.
 
+Fast playback (dropdown one) is really unstable. It's not recommended to use as of now.
+
 ---
 
 ## How It Works
@@ -74,7 +75,5 @@ You should try enabling it in the settings.
 ---
 
 ## Footage
-
-This is outdated, now it's faster:
 
 ![Demo](https://raw.githubusercontent.com/ndrnmnk/ndrnmnk/main/ourtube.gif)

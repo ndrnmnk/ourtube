@@ -1,0 +1,22 @@
+# BITRATES
+
+# vb - video bitrate, ab - audio bitrate
+# Android:
+android_vb: "1200k"
+android_ab: "128k"
+# Symbian:
+symb_vb: "700k"
+symb_ab: "96k"
+# Non-Symbian feature phones:
+j2me_vb: "100k"
+j2me_ab: "12.2k"
+# Windows Mobile PDAs:
+wm_vb: "384k"
+wm_ab: "64k"
+
+# These 2 are measured in seconds
+cleaner_interval: 300
+thumbnail_lifetime: 600
+
+
+"video_lifetime_multiplier": 3
