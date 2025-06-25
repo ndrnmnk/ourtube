@@ -1,34 +1,37 @@
 import threading
 import logging
-import time
+import subprocess
+import sys
 from arp import arp
-from youtube.server import create_server
+from server import create_server
 from cleaner import Cleaner
 
 
-
-def run_flask_server(db_cleaner):
-    """Function to run the Flask server"""
-    app = create_server(db_cleaner, arp())
-    app.run(host='0.0.0.0', port=5001)
+def run_flask_server():
+    create_server(arp()).run(host='0.0.0.0', port=5001)
 
 
 def main():
-    """Main launcher function"""
     # Start the cleaner in a separate thread
     db_cleaner = Cleaner()
-    threading.Thread(target=db_cleaner.run, daemon=True).start()
+    threading.Thread(target=db_cleaner.run).start()
     logging.info("Cleaner started")
 
-    # Wait for 1 second to ensure the cleaner initializes properly
-    time.sleep(1)
+    # Launch deadRTSP
+    subprocess.Popen(
+        [sys.executable, "main.py"],
+        cwd="deadRTSP",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    logging.info("deadRTSP started")
 
-    # Start the Flask server in another thread
-    flask_thread = threading.Thread(target=run_flask_server, args=(db_cleaner,), daemon=False)
+    # Start the Main server in another thread
+    flask_thread = threading.Thread(target=run_flask_server)
     flask_thread.start()
-    logging.info("Flask server started")
+    logging.info("Main server started")
 
-    # Join the Flask thread to prevent the script from exiting
+    # Join the Main server's thread to prevent the script from exiting
     flask_thread.join()
 
 

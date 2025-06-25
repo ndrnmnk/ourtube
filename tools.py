@@ -1,9 +1,11 @@
 import os
+import re
 import glob
 import shutil
+import yt_dlp
 import logging
 import subprocess
-import yt_dlp
+from collections import deque
 from config import config_instance
 
 
@@ -39,20 +41,23 @@ def search(query, max_results=10):
         })
     return results
 
-def prepare_video(url, identifier, dtype, sm, width, height, fps):
-    """Downloads the worst quality video that meets the specified width and height using yt-dlp and converts it further.
+def prepare_video(url, identifier, dtype, sm, width, height, fps, allow_streaming, duration):
+    """
+    Downloads the worst quality video that meets the specified width and height using yt-dlp and converts it further.
 
     Parameters:
         url (str): The URL of the video to download.
         identifier (str): A unique identifier for the video file.
-        dtype(int): Device type; defines to which format convert the video.
+        dtype (int): Device type; defines to which format convert the video.
         sm (int): Scaling method; Look at reformat_video for details.
         width (int): The minimum desired width of the video.
         height (int): The minimum desired height of the video.
         fps (str): Target fps of a video.
+        allow_streaming (bool): Allow streaming with this video file while it's not fully converted.
+        duration (int): Target video duration. Used for calculating progress.
     """
     try:
-        video_path = os.path.join("youtube", "videos", identifier)
+        video_path = os.path.join("videos", identifier)
         os.makedirs(video_path, exist_ok=True)
 
         format_filter = (
@@ -63,52 +68,102 @@ def prepare_video(url, identifier, dtype, sm, width, height, fps):
         )
 
         ydl_cmd = ["yt-dlp", "--quiet", "-f", format_filter, "-o", "-", url]
+        ffmpeg_cmd, file_ext = generate_ffmpeg_cmd(video_path, sm, dtype, width, height, fps, allow_streaming)
 
-        ffmpeg_cmd, file_ext = reformat_video(video_path, sm, dtype, width, height, fps)
         ydl_proc = subprocess.Popen(ydl_cmd, stdout=subprocess.PIPE)
-        ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdin=ydl_proc.stdout)
-        ydl_proc.stdout.close()  # Allow yt-dlp to receive SIGPIPE if ffmpeg exits
+        ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdin=ydl_proc.stdout, stderr=subprocess.PIPE, universal_newlines=True, bufsize=1)
+        ydl_proc.stdout.close()  # Let yt-dlp handle SIGPIPE if ffmpeg exits
+
+        speed_deque = deque(maxlen=3)
+        speed_re = re.compile(r"speed=\s*([\d.]+)x")
+        progress_re = re.compile(r"time=\s*(\S+)")
+
+        i = 0
+        have_to_recontainer = False
+        streaming_checked = False
+
+        for line in ffmpeg_proc.stderr:
+            # Extract speed
+            speed_match = speed_re.search(line)
+            if speed_match:
+                speed = float(speed_match.group(1))
+                if i > 0:
+                    speed_deque.append(speed)
+                i += 1
+
+            # After collecting enough speed samples, decide on RTSP
+            if not streaming_checked and i >= 4 and allow_streaming:
+                avg_speed = sum(speed_deque) / 3
+                streaming_checked = True
+                if avg_speed > 1.5:
+                    yield "mkv"
+                    return
+                else:
+                    have_to_recontainer = True
+                    yield "Msg: Conversion too slow; Switching to regular mode\n"
+
+            # Yield progress info
+            prog_match = progress_re.search(line)
+            if prog_match:
+                progress = ffmpeg_time_to_seconds(prog_match.group(1))
+                yield f"Progress: {int(progress*100/duration)}%\n"
+
+        # Wait for processes to finish
         ffmpeg_proc.communicate()
         ydl_proc.wait()
 
-        if ydl_proc.returncode != 0:
-            logging.error(f"yt-dlp exited with code {ydl_proc.returncode}")
-            return "err"
-        if ffmpeg_proc.returncode != 0:
-            logging.error(f"ffmpeg exited with code {ffmpeg_proc.returncode}")
-            return "err"
+        if ydl_proc.returncode != 0 or ffmpeg_proc.returncode != 0:
+            logging.error(f"One of the processes exited with non-zero code")
+            yield "err"
+            return
+
+        if have_to_recontainer:
+            recontainer_video(video_path, dtype)
 
         logging.info(f"Successfully downloaded video to {video_path}")
-        return file_ext
+        yield file_ext
+        return
+
     except Exception as e:
         logging.error(f"An error occurred while downloading the video: {e}")
         return "err"
 
-def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps):
+def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps, streaming_requested):
     """Convert video using ffmpeg with specific arguments
     Device types:
         0: Old android phone
         1: New android phone; just scale video
-        2: Java phone; 3gp+amr
-        3: Symbian phone; 3gp+aac
-        4: Windows Mobile PDA; mp4+aac
+        2: Java phone; a lot of adjustments
+        3: Symbian phone; like old android but lower bitrates
+        4: Windows Mobile PDA;
     Scale methods:
         0: Scale to screen resolution while KEEPING aspect ratio
         1: Scale and crop for perfect match
         2: Stretch to screen resolution while IGNORING aspect ratio
+    Streaming:
+        If user made a request with RTSP or MKV support, container will be replaced with MKV.
+        If this isn't fast enough in RTSP mode, video will be moved to a different container on first play request
     """
-    if device_type == 5 and scale_method > 2:
+
+    if (device_type == 1 or device_type > 4) and scale_method > 2:
+        file_ext = "mp4"
         command = [
-            "ffmpeg", "-loglevel", "error",
+            "ffmpeg",
             "-i", "pipe:0",
             "-c", "copy",
-            "-y", os.path.join(path, "result.mp4")
+            "-f", "mp4"
         ]
-        return command, "mp4"
+        if streaming_requested:
+            command[-1] = "matroska"
+            file_ext = "mkv"
+        command.extend(["-y", os.path.join(path, f"result.{file_ext}")])
+        return command, file_ext
 
     if device_type == 2:
-        if screen_h >= 228 and screen_w >= 352:
-            screen_w, screen_h = 352, 228
+        if screen_h >= 576 and screen_w >= 704:
+            screen_w, screen_h = 704, 576
+        elif screen_h >= 288 and screen_w >= 352:
+            screen_w, screen_h = 352, 288
         elif screen_h >= 144 and screen_w >= 176:
             screen_w, screen_h = 176, 144
         else:
@@ -134,35 +189,39 @@ def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps):
     # compose scale_args
     scale_args = ["-vf", ",".join(filters)] if filters else []
 
-    if device_type == 0:  # Old Android (3gp + AAC)
-        conv_args = ["-c:v", "mpeg4", "-c:a", "aac", "-f", "mp4"]
+    if device_type == 0:  # Old Android (3gp, mpeg4 + aac)
+        conv_args = ["-c:v", "mpeg4", "-c:a", "aac", "-movflags", "+faststart", "-f", "3gp"]
         video_bitrate = config_instance.get("android_vb")
         audio_bitrate = config_instance.get("android_ab")
-        file_ext = "mp4"
-    elif device_type == 2:  # Java (3gp + AMR), mono 8kHz audio
+        file_ext = "3gp"
+    elif device_type == 2:  # Java (3gp, h263 + AMR)
         conv_args = ["-c:v", "h263", "-profile:v", "0", "-c:a", "libopencore_amrnb", "-ac", "1",
-                     "-ar", "8000", "-f", "3gp", "-metadata", "major_brand=3gp5", "-movflags", "+faststart"]
+                     "-ar", "8000", "-metadata", "major_brand=3gp5", "-movflags", "+faststart", "-f", "3gp"]
         video_bitrate = config_instance.get("j2me_vb")
         audio_bitrate = config_instance.get("j2me_ab")
         file_ext = "3gp"
-    elif device_type == 3:  # Symbian (3gp + AAC)
-        conv_args = ["-c:v", "mpeg4", "-ac", "1", "-c:a", "aac", "-f", "3gp"]
+    elif device_type == 3:  # Symbian (3gp, mpeg4 + AAC)
+        conv_args = ["-c:v", "mpeg4", "-ac", "1", "-c:a", "aac", "-movflags", "+faststart", "-f", "3gp"]
         video_bitrate = config_instance.get("symb_vb")
         audio_bitrate = config_instance.get("symb_ab")
         file_ext = "3gp"
-    elif device_type == 4:  # Windows Mobile
-        conv_args = ["-c:v", "wmv2", "-c:a", "wmav2", "-f", "asf"]
+    elif device_type == 4:  # Windows Mobile (asf, wmv2 + wmav2)
+        conv_args = ["-c:v", "wmv2", "-c:a", "wmav2", "-movflags", "+faststart", "-f", "asf"]
         video_bitrate = config_instance.get("wm_vb")
         audio_bitrate = config_instance.get("wm_ab")
         file_ext = "wmv"
-    else:  # New Android (mp4)
-        conv_args = []
+    else:  # New Android (mp4, h264 + aac)
+        conv_args = ["-movflags", "+faststart+frag_keyframe+empty_moov", "-f", "mp4"]
         video_bitrate = config_instance.get("android_vb")
         audio_bitrate = config_instance.get("android_ab")
         file_ext = "mp4"
 
+    if streaming_requested:
+        conv_args[-1] = "matroska"
+        file_ext = "mkv"
+
     command = [
-        "ffmpeg", "-loglevel", "error",
+        "ffmpeg",
         "-i", "pipe:0",
         "-preset", "fast",
         "-b:v", video_bitrate,
@@ -173,10 +232,21 @@ def reformat_video(path, scale_method, device_type, screen_w, screen_h, fps):
     ]
     return command, file_ext
 
+def recontainer_video(path, device_type):
+    if device_type > 4:
+        device_type = 1
+    file_exts = ["3gp", "mp4", "3gp", "3gp", "wmv"]
+    container_names = ["3gp", "mp4", "3gp", "3gp", "asf"]
+    file_ext = file_exts[device_type]
+    proc = subprocess.Popen(["ffmpeg", "-loglevel", "quiet", "-i", os.path.join(path, "result.mkv"), "-f", container_names[device_type], os.path.join(path, f"result.{file_ext}")])
+    proc.communicate()
+    os.remove(os.path.join(path, "result.mkv"))
+    return file_ext
+
 def prepare_thumbnail(url, idx, thumbnail_id):
     """Download the thumbnail using yt-dlp and convert it using ffmpeg"""
     # figure out a path first
-    output_path = os.path.join("youtube", "thumbnails", idx)
+    output_path = os.path.join("thumbnails", idx)
     if not os.path.exists(output_path):
         os.mkdir(output_path)
     output_path = os.path.join(output_path, thumbnail_id)
@@ -185,7 +255,7 @@ def prepare_thumbnail(url, idx, thumbnail_id):
     output_path = os.path.join(output_path, "img")
 
     try:
-        subprocess.run(["yt-dlp", "--quiet", "--skip-download", "--write-thumbnail", "-o", output_path+".unprocessed", url], check=True)
+        subprocess.run(["yt-dlp", "--quiet", "--skip-download", "--write-thumbnail", "-o", output_path, url], check=True)
 
         convert_thumbnail(output_path)
 
@@ -207,3 +277,32 @@ def convert_thumbnail(path):
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Error occurred while processing the image: {e}")
+
+def get_video_length(url):
+    with yt_dlp.YoutubeDL({}) as ydl:
+        info_dict = ydl.extract_info(url, download=False)
+        return info_dict.get("duration")
+
+def ffmpeg_time_to_seconds(time_str):
+    if time_str == "N/A":
+        return 0.0
+
+    # Split off the milliseconds
+    if '.' in time_str:
+        time_part, ms = time_str.rsplit('.', 1)
+        ms = float('0.' + ms)
+    else:
+        time_part = time_str
+        ms = 0.0
+
+    # Split the main time into components
+    parts = list(map(int, time_part.split(':')))
+
+    hours, minutes, seconds = parts
+    total_seconds = (
+        hours * 3600 +
+        minutes * 60 +
+        seconds +
+        ms
+    )
+    return total_seconds

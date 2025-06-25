@@ -3,9 +3,10 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
-      <excludeFolder url="file://$MODULE_DIR$/youtube/thumbnails/04a3f0f3-344f-4000-bee0-b8c48d0adc36" />
+      <excludeFolder url="file://$MODULE_DIR$/thumbnails/04a3f0f3-344f-4000-bee0-b8c48d0adc36" />
+      <excludeFolder url="file://$MODULE_DIR$/videos/d2309efc-5ab8-4167-8d23-09efc5ab8167" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.10 (ourtube)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.12 virtualenv at ~/PycharmProjects/ourtube/.venv" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

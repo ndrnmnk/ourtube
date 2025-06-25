@@ -1,0 +1,29 @@
+diff --git a/main.py b/main.py
+index ba00b47..07ab874 100644
+--- a/main.py
++++ b/main.py
+@@ -1,4 +1,5 @@
+ import re
++import os
+ import time
+ import socket
+ import secrets
+@@ -11,7 +12,17 @@ from sdp_gen import generate_sdp
+ 
+ # EDIT THIS FUNCTION TO CHANGE THE VIDEO
+ def choose_video(request):
+-    return "video.mp4"
++    pattern = re.compile(
++        r'/video/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-'
++        r'[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.(\w+)'
++    )
++
++    match = pattern.search(request)
++    uuid = match.group(1)
++    ext = match.group(2)
++
++    OURTUBE_PROJECT_ROOT = ".."
++    return os.path.join(OURTUBE_PROJECT_ROOT, "videos", uuid, f"result.{ext}")
+ 
+ 
+ # EDIT THIS LIST TO INCLUDE YOUR LEGACY DEVICE IF IT DOESN'T WORK AS-IS

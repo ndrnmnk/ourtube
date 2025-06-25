@@ -1,14 +1,14 @@
 from flask import Flask, Response, request, send_file, jsonify, stream_with_context
 from urllib.parse import unquote
-from config import config_instance
-from youtube import tools
-from concurrent.futures import ThreadPoolExecutor
 import flask.json as json
-from arp import arp
 import logging
 import time
 import uuid
 import os
+from config import Config
+from cleaner import Cleaner
+from arp import arp
+import tools
 
 def is_valid_uuid(s):
     try:
@@ -30,13 +30,13 @@ def generate(file_path, start, end):
             yield chunk
             remaining -= len(chunk)
 
-def create_server(cleaner, arp_true):
+def create_server(self_arp):
     app = Flask(__name__)
 
-    @app.route('/convert', methods=['GET'])
+    @app.route('/api/convert', methods=['GET'])
     def convert_video():
-        arp2 = arp(request.remote_addr)
-        youtube_url = request.args.get('url')
+        client_arp = arp(request.remote_addr)
+        video_url = request.args.get('url')
         identifier = request.args.get('i')
         try:
             dtype = int(request.args.get('dtype'))
@@ -44,47 +44,49 @@ def create_server(cleaner, arp_true):
             height = int(request.args.get('h'))
             fps = request.args.get("fps")
             sm = int(request.args.get('sm'))
-            length = int(request.args.get('len'))
+            fp = request.args.get("fp") == "1"
         except (TypeError, ValueError):
-            return jsonify({"error": "Invalid numeric parameter(s)."}), 400
+            return jsonify({"error": "Invalid numeric parameter(s).", "video_url": None, "fp": False}), 400
 
-        if arp_true or arp2:
-            youtube_url = "https://www.youtube.com/watch?v=XA8I5AG_7to"
+        if width < height:
+            width, height = height, width
+            
+        duration = int(request.args.get('len'))
+        if not duration:
+            duration = tools.get_video_length(video_url)
 
-        required = {"url": youtube_url, "identifier": identifier}
+        if self_arp or client_arp:
+            video_url = "https://www.youtube.com/watch?v=XA8I5AG_7to"
+
+        required = {"url": video_url, "identifier": identifier}
         for field, value in required.items():
             if not value:
-                return jsonify({"error": f"{field} is required", "video_url": None}), 400 if field == "url" else 403
+                return jsonify({"error": f"{field} is required", "video_url": None, "fp": False}), 400 if field == "url" else 403
         if not is_valid_uuid(identifier):
-            return jsonify({"error": "Not a valid uuid.", "video_url": None}), 403
+            return jsonify({"error": "Not a valid uuid.", "video_url": None, "fp": False}), 403
 
-        cleaner.remove_content_at(os.path.join("youtube", "videos", identifier))
+        Cleaner().remove_content_at(os.path.join("videos", identifier))
 
         def generate_response():
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(tools.prepare_video, youtube_url, identifier, dtype, sm, width, height, fps)
+            try:
+                for progress in tools.prepare_video(video_url, identifier, dtype, sm, width, height, fps, fp, duration):
+                    if len(progress) != 3:
+                        yield progress
 
-                # While the task is running
-                while not future.done():
-                    yield " \n\n"
+                # When generator exits, last progress would be file extension
+                video_url_processed = f"api/video/{identifier}.{progress}"
+                Cleaner().add_content(
+                    os.path.join("videos", identifier),
+                    time.time() + duration * Config().get("video_lifetime_multiplier")
+                )
+                yield json.dumps({"video_url": video_url_processed, "fp": (progress == "mkv")}) + "\n"
+            except Exception as e:
+                logging.error(e)
+                yield json.dumps({"error": "Failed to convert video", "fp": False}) + "\n"
 
-                # Get the result when done
-                try:
-                    file_ext = future.result()
-                    if file_ext == "err":
-                        yield json.dumps({"error": "Failed to convert video"}) + "\n"
-                        return
-                    res = json.dumps({"video_url": os.path.join("video", identifier + '.' + file_ext)}) + "\n"
-                    cleaner.add_content(os.path.join("youtube", "videos", identifier), time.time() + length * config_instance.get("video_lifetime_multiplier"))
-                    yield res
-                    return
-                except Exception as e:
-                    logging.error(e)
-                    yield json.dumps({"error": "Failed to convert video"}) + "\n"
+        return Response(stream_with_context(generate_response()), mimetype="text/plain")
 
-        return Response(stream_with_context(generate_response()), mimetype="application/json")
-
-    @app.route('/search', methods=['GET'])
+    @app.route('/api/search', methods=['GET'])
     def search():
         query = unquote(request.args.get('q'))
         identifier = request.args.get('i')
@@ -99,17 +101,17 @@ def create_server(cleaner, arp_true):
 
         res = tools.search(query)
         if th:
-            cleaner.remove_content_at(os.path.join("youtube", "thumbnails", identifier))
-            cleaner.add_content(os.path.join("youtube", "thumbnails", identifier), time.time() + config_instance.get("thumbnail_lifetime"))
+            Cleaner().remove_content_at(os.path.join("thumbnails", identifier))
+            Cleaner().add_content(os.path.join("thumbnails", identifier), time.time() + Config().get("thumbnail_lifetime"))
         return res
 
-    @app.route('/convert_thumbnail')
+    @app.route('/api/convert_thumbnail')
     def serve_image():
-        youtube_url = request.args.get('url')
+        pic_url = request.args.get('url')
         identifier = request.args.get('i')
         thid = request.args.get('thid')  # thid stands for thumbnail id
 
-        required = {"url": youtube_url, "identifier": identifier}
+        required = {"url": pic_url, "identifier": identifier}
         for field, value in required.items():
             if not value:
                 return jsonify({"error": f"{field} is required"}), 400 if field == "url" else 403
@@ -118,17 +120,17 @@ def create_server(cleaner, arp_true):
 
         image_path = os.path.join("thumbnails", identifier, thid, "img.jpg")
         try:
-            tools.prepare_thumbnail(youtube_url, identifier, thid)
+            tools.prepare_thumbnail(pic_url, identifier, thid)
             return send_file(image_path, mimetype='image/jpg')
         except FileNotFoundError:
             # since this only happens when thumbnail couldn't be converted
             logging.warning(f"Thumbnail not found: {image_path}")
             return jsonify({"error": "Thumbnail wasn't converted"}), 404
 
-    @app.route('/video/<identifier>.<ext>')
+    @app.route('/api/video/<identifier>.<ext>')
     def stream_video(identifier, ext):
         raw = (request.args.get('raw') == "1")
-        file_path = os.path.join("youtube", "videos", identifier, f"result.{ext}")
+        file_path = os.path.join("videos", identifier, f"result.{ext}")
 
         mime_types = {
             "mp4": "video/mp4",
