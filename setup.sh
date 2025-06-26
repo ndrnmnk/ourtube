@@ -9,4 +9,5 @@ mv deadRTSP_video_adjustment.patch deadRTSP/;
 cd deadRTSP;
 git apply deadRTSP_video_adjustment.patch;
 cd ..;
-echo "Ourtube installed successfully! Execute <launch.py> to start it"
+echo "Ourtube installed successfully!"
+echo "Run 'source venv/bin/activate && python launch.py' to start it"

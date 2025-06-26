@@ -25,7 +25,8 @@
 ### Server Setup
 
 ```bash
-git clone https://github.com/ndrnmnk/ourtube
+git clone https://github.com/ndrnmnk/ourtube;
+cd ourtube;
 setup.sh
 ```
 Make sure ffmpeg is installed, functional and available in you system `PATH`.
@@ -34,9 +35,10 @@ Make sure ffmpeg is installed, functional and available in you system `PATH`.
 
 Edit `config.json` if you want to change server settings (default ones usually work fine).
 
-To launch the server:
+To launch the server, run this in project directory:
 
 ```bash
+source venv/bin/activate;
 python3 launcher.py
 ```
 You’ll see both your local and public IP printed on launch — those will be used in the client app.

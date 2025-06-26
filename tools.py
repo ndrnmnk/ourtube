@@ -211,7 +211,7 @@ def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps
         audio_bitrate = config_instance.get("wm_ab")
         file_ext = "wmv"
     else:  # New Android (mp4, h264 + aac)
-        conv_args = ["-movflags", "+faststart+frag_keyframe+empty_moov", "-f", "mp4"]
+        conv_args = ["-movflags", "+faststart", "-f", "mp4"]
         video_bitrate = config_instance.get("android_vb")
         audio_bitrate = config_instance.get("android_ab")
         file_ext = "mp4"
