@@ -4,9 +4,9 @@ mkdir -p videos;
 mkdir -p thumbnails;
 python3 -m venv venv;
 venv/bin/pip install -r requirements.txt;
-git clone https://github.com/ndrnmnk/deadRTSP;
-mv deadRTSP_video_adjustment.patch deadRTSP/;
-cd deadRTSP;
+git clone https://github.com/ndrnmnk/DeadRTSP;
+mv deadRTSP_video_adjustment.patch DeadRTSP/;
+cd DeadRTSP;
 git apply deadRTSP_video_adjustment.patch;
 cd ..;
 echo "Ourtube installed successfully!"
