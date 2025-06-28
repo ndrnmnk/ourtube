@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.1//EN"
+    "http://www.wapforum.org/DTD/wml_1.1.xml">
+<wml>
+  <card id="main" title="Ourtube">
+    <p>
+      Welcome to Ourtube!<br/>
+      Search query:<br/> <input name="query" type="text" size="20"/><br/>
+      <anchor>
+        Submit
+        <go href="wap/search-res" method="get">
+          <postfield name="q" value="$(query)"/>
+        </go>
+      </anchor>
+    </p>
+  </card>
+</wml>

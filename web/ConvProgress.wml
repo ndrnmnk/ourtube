@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.1//EN"
+    "http://www.wapforum.org/DTD/wml_1.1.xml">
+<wml>
+  <card id="main" title="Converting">
+    <onevent type="ontimer">
+      <go href="convert" method="get">
+        <postfield name="l" value="~3"/>
+        <postfield name="i" value="~1"/>
+      </go>
+    </onevent>
+    <timer value="50"/>
+    <p>
+      ~2
+    </p>
+  </card>
+</wml>

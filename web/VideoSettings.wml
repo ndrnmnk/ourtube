@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.1//EN"
+    "http://www.wapforum.org/DTD/wml_1.1.xml">
+<wml>
+  <card id="main" title="Settings">
+    <p>
+      Before converting, select target video settings.<br/>
+      Video width:<br/> <input name="width" type="number" size="4" value="~5"/><br/>
+      Video height:<br/> <input name="height" type="number" size="4" value="~6"/><br/>
+      Video fps:<br/> <input name="fps" type="number" size="3" value="~7"/><br/>
+
+      Device type:<br/>
+      <select name="dtype" value="~4">
+        <option value="0">Old Android</option>
+        <option value="1">New Android</option>
+        <option value="2">J2ME phone</option>
+        <option value="3">Symbian phone</option>
+        <option value="4">Windows PDA</option>
+      </select><br/>
+
+      Device type:<br/>
+      <select name="sm" value="~8">
+        <option value="0">Stretch (keep AR)</option>
+        <option value="1">Crop</option>
+        <option value="2">Force Stretch</option>
+      </select><br/>
+
+      Enable RTSP:<br/>
+      <select name="rtsp" value="~9">
+        <option value="1">Yes</option>
+        <option value="0">No</option>
+      </select><br/>
+
+      <anchor>
+        Convert
+        <go href="convert" method="get">
+          <postfield name="i" value="~2"/>
+          <postfield name="l" value="~3"/>
+          <postfield name="dtype" value="$(dtype)"/>
+          <postfield name="w" value="$(width)"/>
+          <postfield name="h" value="$(height)"/>
+          <postfield name="fps" value="$(fps)"/>
+          <postfield name="sm" value="$(sm)"/>
+          <postfield name="fp" value="$(rtsp)"/>
+          <postfield name="url" value="~0"/>
+        </go>
+      </anchor>
+
+    </p>
+  </card>
+</wml>

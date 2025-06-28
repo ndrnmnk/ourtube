@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.1//EN"
+    "http://www.wapforum.org/DTD/wml_1.1.xml">
+<wml>
+  <card id="main" title="Error">
+    <onevent type="ontimer">
+      <go href="settings" method="get">
+          <postfield name="i" value="~2"/>
+          <postfield name="l" value="~3"/>
+          <postfield name="dtype" value="~4"/>
+          <postfield name="w" value="~5"/>
+          <postfield name="h" value="~6"/>
+          <postfield name="fps" value="~7"/>
+          <postfield name="sm" value="~8"/>
+          <postfield name="fp" value="~9"/>
+          <postfield name="url" value="~0"/>
+      </go>
+    </onevent>
+    <timer value="50"/>
+    <p>
+      ~1
+    </p>
+  </card>
+</wml>

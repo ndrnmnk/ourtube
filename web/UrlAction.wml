@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.1//EN"
+    "http://www.wapforum.org/DTD/wml_1.1.xml">
+<wml>
+  <card id="main" title="URL detected">
+    <p>
+      Your search query looks like a URL<br/>
+      Would you like to search it or play instead?<br/>
+      <anchor>
+        Search
+        <go href="search-res" method="get">
+          <postfield name="q" value="~1"/>
+          <postfield name="sure" value="1"/>
+        </go>
+      </anchor>
+      <br/>
+      <anchor>
+        Play
+        <go href="settings" method="get">
+          <postfield name="url" value="~1"/>
+        </go>
+      </anchor>
+    </p>
+  </card>
+</wml>
