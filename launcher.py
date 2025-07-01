@@ -14,7 +14,7 @@ def run_flask_server():
 def main():
     # Start the cleaner in a separate thread
     db_cleaner = Cleaner()
-    logging.basicConfig(level=10)
+    # logging.basicConfig(level=10)
     threading.Thread(target=db_cleaner.run).start()
     logging.info("Cleaner started")
 

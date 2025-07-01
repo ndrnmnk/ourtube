@@ -1,7 +1,7 @@
 .venv
 __pycache__
 thumbnails/*
-deadRTSP
+DeadRTSP
 videos/*
 data.db
 .idea

@@ -1,7 +1,5 @@
 import os
 import re
-import glob
-import shutil
 import threading
 
 import yt_dlp
@@ -47,6 +45,7 @@ class VideoProcessor:
         threading.Thread(target = self._convert).start()
 
     def _convert(self):
+        # commented try-except out for debugging
         try:
             video_path = os.path.join("videos", self.identifier)
             os.makedirs(video_path, exist_ok=True)
@@ -165,7 +164,7 @@ def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps
     """Convert video using ffmpeg with specific arguments
     Device types:
         0: Old android phone
-        1: New android phone; just scale video
+        1: Generic new device; just scale video
         2: Java phone; a lot of adjustments
         3: Symbian phone; like old android but lower bitrates
         4: Windows Mobile PDA;
@@ -182,6 +181,7 @@ def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps
         file_ext = "mp4"
         command = [
             "ffmpeg", "-i", "pipe:0",
+            "-max_muxing_queue_size", "9999",
             "-c:v", "copy", "-c:a", "aac",
             "-b:a", config_instance.get("android_ab"),
             "-f", "mp4"
@@ -257,6 +257,7 @@ def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps
         "ffmpeg",
         "-i", "pipe:0",
         "-preset", "fast",
+        "-max_muxing_queue_size", "9999",
         "-b:v", video_bitrate,
         "-b:a", audio_bitrate,
         "-r", str(fps),
@@ -271,50 +272,42 @@ def recontainer_video(path, device_type):
     file_exts = ["3gp", "mp4", "3gp", "3gp", "wmv"]
     container_names = ["3gp", "mp4", "3gp", "3gp", "asf"]
     file_ext = file_exts[device_type]
-    proc = subprocess.Popen(["ffmpeg", "-loglevel", "quiet", "-i", os.path.join(path, "result.mkv"), "-f", container_names[device_type], os.path.join(path, f"result.{file_ext}")])
+    proc = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-i", os.path.join(path, "result.mkv"), "-f", container_names[device_type], os.path.join(path, f"result.{file_ext}")])
     proc.communicate()
     os.remove(os.path.join(path, "result.mkv"))
     return file_ext
 
 def prepare_thumbnail(url, idx, thumbnail_id):
-    """Download the thumbnail using yt-dlp and convert it using ffmpeg"""
-    # figure out a path first
-    output_path = os.path.join("thumbnails", idx)
-    if not os.path.exists(output_path):
-        os.mkdir(output_path)
-    output_path = os.path.join(output_path, thumbnail_id)
-    if os.path.exists(output_path):
-        shutil.rmtree(output_path)
-    output_path = os.path.join(output_path, "img")
+    output_path = os.path.join("thumbnails", idx, thumbnail_id)
+    os.makedirs(output_path)
+    output_path = os.path.join(output_path, "img.jpg")
 
     try:
-        subprocess.run(["yt-dlp", "--quiet", "--skip-download", "--write-thumbnail", "-o", output_path, url], check=True)
+        # Extract video ID from URL
+        if 'v=' in url:
+            video_id = url.split('v=')[1].split('&')[0]
+        elif "/shorts/" in url:
+            video_id = url.split('shorts/')[1].split('&')[0]
+        else:
+            raise ValueError("Invalid YouTube URL")
 
-        convert_thumbnail(output_path)
+        # Construct the fastest thumbnail URL (smallest size)
+        thumbnail_url = f"https://img.youtube.com/vi/{video_id}/default.jpg"
+
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-i", thumbnail_url, "-vf", "scale=96:54", output_path, "-y" ], check=True)
 
         logging.info(f"Thumbnail downloaded to {output_path}")
-    except yt_dlp.DownloadError as e:
+    except Exception as e:
         logging.error(f"An error occurred during downloading thumbnail: {e}")
 
-def convert_thumbnail(path):
-    """Converts video thumbnails to jpg"""
-    try:
-        # Find the file with the given base path and any extension
-        files = glob.glob(path + ".*")
-        if not files:
-            logging.error(f"No file found with base path: {path}")
-            return
-        input_file = files[0]  # Since there are no conflicts, take the first match
-        # Run ffmpeg command to resize and convert the image to jpg
-        subprocess.run([ "ffmpeg", "-loglevel", "error", "-i", input_file, "-vf", "scale=96:54", path + ".jpg", "-y" ], check=True)
-
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Error occurred while processing the image: {e}")
-
 def get_video_length(url):
-    with yt_dlp.YoutubeDL({}) as ydl:
-        info_dict = ydl.extract_info(url, download=False)
-        return info_dict.get("duration")
+    try:
+        result = subprocess.run(['yt-dlp', '--skip-download', '--print', '"%duration"', url],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        duration_seconds = int(result.stdout.strip())
+    except:
+        duration_seconds = 600
+    return duration_seconds
 
 def ffmpeg_time_to_seconds(time_str):
     if time_str == "N/A":
@@ -340,67 +333,12 @@ def ffmpeg_time_to_seconds(time_str):
     )
     return total_seconds
 
-def seconds_to_readable(seconds):
-    if seconds < 3600:
-        minutes = seconds // 60
-        secs = seconds % 60
-        return f"{minutes:02}:{secs:02}"
-    else:
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        secs = seconds % 60
-        return f"{hours:02}:{minutes:02}:{secs:02}"
-
-def progress_bar_gen(progress_str):
-    # Convert to integer
-    try:
-        p_int = int(progress_str.replace("Progress: ", "").replace("%", ""))
-    except ValueError:
-        p_int = 1
-
-    # Progress bar is 10 characters long without []
-    p_dec = p_int // 10
-    return '[' + '#'*p_dec + '_'*(10-p_dec) + '] ' + str(p_int) + "%"
-
-def render_template(filename, replacements):
-    with open(os.path.join("web", filename)) as wap_file:
-        template = wap_file.read()
-    for key, value in replacements.items():
-        template = template.replace(key, value)
-    return template
-
-def is_url(query):
-    pattern = re.compile("^https?://\\S*\\.\\S+$")
-    match = re.search(pattern, query)
-    if match:
-        return True
-    else:
-        return False
-
-def render_error_settings_wml(template, request, swap_dict=None):
-    if swap_dict is None:
-        swap_dict = {}
-    swap_dict["~0"] = request.args.get('url')
-    swap_dict["~2"] =  request.args.get('i') or swap_dict["~2"]
-    swap_dict["~3"] = request.args.get('l') or swap_dict["~3"]
-    swap_dict["~4"] = request.args.get('dtype') or "2"
-    swap_dict["~5"] = request.args.get('w') or "128"
-    swap_dict["~6"] = request.args.get('h') or "96"
-    swap_dict["~7"] = request.args.get('fps') or "12"
-    swap_dict["~8"] = request.args.get('sm') or "1"
-    swap_dict["~9"] = request.args.get('fp') or "1"
-    print(swap_dict)
-    res = render_template(template, swap_dict)
-    return res
-
-
 def approximate_bitrate(width, height, fps):
-    compression_ratio = 25
+    bpp = 0.15  # bits per pixel
 
     # Bitrate estimation
     raw_bitrate = width * height * fps  # pixels per second
-    compressed_bitrate = raw_bitrate / compression_ratio  # bits per second
+    compressed_bitrate = raw_bitrate * bpp  # bits per second
 
-    bitrate_mbps = compressed_bitrate / 1_000
-    print(bitrate_mbps)
-    return str(round(bitrate_mbps, 2)) + "k"
+    bitrate_kbps = compressed_bitrate / 1_000
+    return str(round(bitrate_kbps, 2)) + "k"
