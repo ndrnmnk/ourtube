@@ -2,4 +2,3 @@ yt-dlp
 flask
 requests
 pyyaml
-user-agents

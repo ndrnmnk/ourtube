@@ -1,13 +1,13 @@
 <?xml version="1.0"?>
-<!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.1//EN"
-    "http://www.wapforum.org/DTD/wml_1.1.xml">
+<!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.0//EN"
+    "http://www.wapforum.org/DTD/wml_1.0.xml">
 <wml>
   <card id="main" title="Settings">
     <p>
       Before converting, select target video settings.<br/>
-      Video width:<br/> <input name="width" type="number" size="4" value="~5"/><br/>
-      Video height:<br/> <input name="height" type="number" size="4" value="~6"/><br/>
-      Video fps:<br/> <input name="fps" type="number" size="3" value="~7"/><br/>
+      Video width:<br/> <input name="width" type="text" size="4" value="~5"/><br/>
+      Video height:<br/> <input name="height" type="text" size="4" value="~6"/><br/>
+      Video fps:<br/> <input name="fps" type="text" size="2" value="~7"/><br/>
 
       Device type:<br/>
       <select name="dtype" value="~4">

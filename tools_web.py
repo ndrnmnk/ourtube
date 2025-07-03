@@ -89,13 +89,13 @@ def render_settings_html_template(template, request):
     swap_dict["~5"] = request.cookies.get("h") or "96"
     swap_dict["~6"] = request.cookies.get("fps") or "10"
 
-    dtypes = ["Old Android", "Generic new", "J2ME phone", "Symbian phone", "Windows PDA"]
+    dtypes = ["Old Android", "Generic new", "J2ME phone", "Symbian phone", "Windows PDA", "Windows 95 PC"]
     dtype_markup = '<select name="dtype">\n'
     if request.cookies.get('dtype'):
         selected_dtype = int(request.cookies.get('dtype'))
     else:
         selected_dtype = 2
-    for i in range(5):
+    for i in range(6):
         if i != selected_dtype:
             dtype_markup = dtype_markup + f"    <option value={i}>{dtypes[i]}</option>\n"
         else:

@@ -113,6 +113,7 @@ def create_server(self_arp):
         query = request.args.get('q')
         identifier = request.args.get('i')
         th = request.args.get('th')
+        isc = request.args.get('isc') == "1"  # isc stands for "is SoundCloud"
         if th:
             Cleaner().remove_content_at(os.path.join("thumbnails", identifier))
             Cleaner().add_content(os.path.join("thumbnails", identifier), time.time() + Config().get("thumbnail_lifetime"))
@@ -124,7 +125,10 @@ def create_server(self_arp):
         if not tools_web.is_valid_uuid(identifier):
             return jsonify({"error": "Not a valid uuid."}), 403
 
-        res = tools.search(query)
+        if not isc:
+            res = tools.search(query)
+        else:
+            res = tools.search_sc(query)
         return res
 
     @app.route('/api/convert_thumbnail', methods=['GET'])
@@ -157,15 +161,17 @@ def create_server(self_arp):
         mime_types = {
             "mp4": "video/mp4",
             "3gp": "video/3gpp",
-            "wmv": "video/x-ms-wmv"
+            "wmv": "video/x-ms-wmv",
+            "mpg": "video/mpeg"
         }
         mt = mime_types.get(ext.lower(), "application/octet-stream")
 
         # Handle byte-range requests for streaming
         range_header = request.headers.get('Range', None)
         if not range_header or raw:
-            response = send_file(os.path.join("videos", identifier, f"result.{ext}"), mimetype=mt, as_attachment=False, conditional=True)
-            response.headers.pop('Transfer-Encoding', None)  # Ensuring no Transfer-Encoding is applied
+            response = send_file(file_path, mimetype=mt, as_attachment=True)
+            response.headers.pop('Transfer-Encoding', None)
+            response.headers["Connection"] = "close"
             return response
 
         # Parse the Range header if present
@@ -190,7 +196,7 @@ def create_server(self_arp):
             response = Response(generate(file_path, start, end), status=206, mimetype=mt)
             response.headers.add("Content-Range", f"bytes {start}-{end}/{size}")
             response.headers.add("Accept-Ranges", "bytes")
-            # response.headers.add("Content-Length", str(end - start + 1))
+            response.headers.add("Content-Length", str(end - start + 1))
             response.headers.add("Connection", "keep-alive")
             return response
         except FileNotFoundError:
@@ -221,16 +227,16 @@ def create_server(self_arp):
         for video in results_json:
             results_markup.append(
                 '------<br/>\n'
-                f'{video["title"]}<br/>\n'
-                f'By {video["creator"]}<br/>\n'
-                f'{tools_web.seconds_to_readable(video["length"])}<br/>\n'
                 '<anchor>'
-                'Play'
+                f'{video["title"]}'
                 '<go href="settings" method="get">'
                 f'<postfield name="l" value="{video["length"]}"/>'
                 f'<postfield name="url" value="{video["video_url"]}"/>'
                 '</go>'
                 '</anchor>'
+                '<br/>\n'
+                f'By {video["creator"]}<br/>\n'
+                f'{tools_web.seconds_to_readable(video["length"])}<br/>\n'
             )
 
         res = tools_web.render_template("SearchResults.wml", {"~1": "\n".join(results_markup)})
@@ -388,10 +394,11 @@ def create_server(self_arp):
                                   time.time() + int(duration) * Config().get("video_lifetime_multiplier"))
             if file_ext != "err":
                 rtsp_url, http_url = tools_web.generate_links(request.host.split(':')[0], f"api/video/{identifier}.{file_ext}")
-                links = (
-                    f'<a href="{http_url}">Watch (HTTP)</a><br/>'
-                    f'<a href="{rtsp_url}">Watch (RTSP)</a>'
-                )
+                if proc.allow_streaming:
+                    links = ""
+                else:
+                    links = f'<a href="{rtsp_url}">Watch (RTSP)</a><br/>'
+                links = links + f'<a href="{http_url}">Watch (HTTP)</a>'
                 swap_list["~3"] = links
             else:
                 swap_list["~3"] = "<p>Msg: error occurred while converting video</p>"

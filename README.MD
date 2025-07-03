@@ -10,11 +10,11 @@
 ## Features
 
 - Works on Android version **1.0 to 15** (tested from Android 2.3.6 to 15)
-- WAP website
 - Compatible with J2ME phones (tested on **Nokia 6300** and **Nokia N85**)
+- WAP & HTML websites for other devices
 - Server handles:
   - YouTube search
-  - Video playback from YouTube and other yt-dlp supported websites via HTTP progressive download
+  - Video playback from YouTube and other yt-dlp supported websites via HTTP progressive download and RTSP
   - Thumbnail loading (Android only)
 - Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for fetching content and [FFmpeg](https://ffmpeg.org/) for transcoding
 - **No login or API key required**

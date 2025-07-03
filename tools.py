@@ -45,7 +45,6 @@ class VideoProcessor:
         threading.Thread(target = self._convert).start()
 
     def _convert(self):
-        # commented try-except out for debugging
         try:
             video_path = os.path.join("videos", self.identifier)
             os.makedirs(video_path, exist_ok=True)
@@ -54,7 +53,7 @@ class VideoProcessor:
                 f"bestvideo[ext=mp4][vcodec^=avc1]"
                 f"[height>={min(self.height, self.width)}][width>={min(self.width, self.height)}]"
                 f"[height<={max(self.height, self.width)}][width<={max(self.width, self.height)}]"
-                f"+bestaudio[ext=m4a]/mp4"
+                f"+bestaudio/mp4/bestaudio"
             )
 
             ydl_cmd = ["yt-dlp", "--quiet", "-f", format_filter, "-o", "-", self.video_url]
@@ -74,6 +73,7 @@ class VideoProcessor:
             i = 0
 
             for line in self.processes[1].stderr:
+                print(line)
 
                 if len(speed_deque) < 3:
                     # Extract speed
@@ -129,13 +129,6 @@ class VideoProcessor:
 
 
 def search(query, max_results=10):
-    """
-    Use yt-dlp to fetch top search results.
-
-    :param query: str, the search phrase
-    :param max_results: int, number of results to fetch (default is 10)
-    :return: list of dict, each containing video title and URL
-    """
     ydl_options = {
         'quiet': True,  # Suppress yt-dlp output
         'skip_download': True,  # Don't download videos
@@ -156,9 +149,41 @@ def search(query, max_results=10):
             'title': entry.get('title'),
             'creator': entry.get('uploader'),
             'length': duration,
-            'video_url': entry.get('url')
+            'video_url': entry.get('url'),
+            'thumbnail_url': generate_yt_thumbnail_url(entry.get('url'))
         })
     return results
+
+def search_sc(query, max_results=10):
+    ydl_opts = {
+        'quiet': True,
+        'extract_flat': True,  # Don't download, just list
+        'force_generic_extractor': False,
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        results = ydl.extract_info(f"scsearch{max_results}:{query}", download=False)
+        entries = results.get('entries', [])
+
+    res = []
+    for entry in entries:
+        try:
+            duration = int(entry.get('duration'))
+        except TypeError:
+            duration = 0
+        try:
+            th_url = entry["thumbnails"][4]["url"]
+        except:
+            th_url = entry.get('url')
+        res.append({
+            'title': entry.get('title'),
+            'creator': entry.get('uploader'),
+            'length': duration,
+            'video_url': entry.get('url'),
+            'thumbnail_url': th_url
+        })
+
+    return res
 
 def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps, streaming_requested):
     """Convert video using ffmpeg with specific arguments
@@ -168,6 +193,7 @@ def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps
         2: Java phone; a lot of adjustments
         3: Symbian phone; like old android but lower bitrates
         4: Windows Mobile PDA;
+        5: Windows 95-era PC;
     Scale methods:
         0: Scale to screen resolution while KEEPING aspect ratio
         1: Scale and crop for perfect match
@@ -243,7 +269,13 @@ def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps
         video_bitrate = config_instance.get("wm_vb")
         audio_bitrate = config_instance.get("wm_ab")
         file_ext = "wmv"
-    else:  # New Android (mp4, h264 + aac)
+    elif device_type == 5:  # Windows 95-era PCs
+        conv_args = ["-c:v", "mpeg1video", "-maxrate", "300k", "-bufsize", "300k", "-bf", "0", "-g", "12",
+                     "-pix_fmt", "yuv420p", "-c:a", "mp2", "-ar", "22050", "-f", "mpeg"]
+        video_bitrate = "300k"
+        audio_bitrate = "96k"
+        file_ext = "mpg"
+    else:  # Assuming generic new
         conv_args = ["-movflags", "+faststart", "-f", "mp4"]
         video_bitrate = approximate_bitrate(screen_w, screen_h, fps)
         audio_bitrate = config_instance.get("android_ab")
@@ -277,28 +309,28 @@ def recontainer_video(path, device_type):
     os.remove(os.path.join(path, "result.mkv"))
     return file_ext
 
-def prepare_thumbnail(url, idx, thumbnail_id):
+def prepare_thumbnail(thumbnail_url, idx, thumbnail_id):
     output_path = os.path.join("thumbnails", idx, thumbnail_id)
     os.makedirs(output_path)
     output_path = os.path.join(output_path, "img.jpg")
 
     try:
-        # Extract video ID from URL
-        if 'v=' in url:
-            video_id = url.split('v=')[1].split('&')[0]
-        elif "/shorts/" in url:
-            video_id = url.split('shorts/')[1].split('&')[0]
-        else:
-            raise ValueError("Invalid YouTube URL")
-
-        # Construct the fastest thumbnail URL (smallest size)
-        thumbnail_url = f"https://img.youtube.com/vi/{video_id}/default.jpg"
-
-        subprocess.run(["ffmpeg", "-loglevel", "error", "-i", thumbnail_url, "-vf", "scale=96:54", output_path, "-y" ], check=True)
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-i", thumbnail_url, "-vf", "scale=-1:54", output_path, "-y" ], check=True)
 
         logging.info(f"Thumbnail downloaded to {output_path}")
     except Exception as e:
         logging.error(f"An error occurred during downloading thumbnail: {e}")
+
+def generate_yt_thumbnail_url(url):
+    if 'v=' in url:
+        video_id = url.split('v=')[1].split('&')[0]
+    elif "/shorts/" in url:
+        video_id = url.split('shorts/')[1].split('&')[0]
+    else:
+        return ""
+
+    # Construct the fastest thumbnail URL (smallest size)
+    return f"https://img.youtube.com/vi/{video_id}/default.jpg"
 
 def get_video_length(url):
     try:
