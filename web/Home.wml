@@ -7,9 +7,17 @@
       Welcome to Ourtube!<br/>
       Search query:<br/> <input name="query" type="text" size="20"/><br/>
       <anchor>
-        Submit
+        Search YT
         <go href="wap/search-res" method="get">
           <postfield name="q" value="$(query)"/>
+        </go>
+      </anchor>
+
+      <anchor>
+        Search SC
+        <go href="wap/search-res" method="get">
+          <postfield name="q" value="$(query)"/>
+          <postfield name="isc" value="1"/>
         </go>
       </anchor>
     </p>

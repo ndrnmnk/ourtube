@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import threading
@@ -9,7 +10,7 @@ from collections import deque
 from config import config_instance
 
 class VideoProcessor:
-    def __init__(self, url, identifier, dtype, sm, width, height, fps, allow_streaming, duration):
+    def __init__(self, url, identifier, dtype, audio_profile, mono_audio, sm, width, height, fps, allow_streaming, duration):
         """
         Downloads the worst quality video that meets the specified width and height using yt-dlp and converts it further.
 
@@ -17,6 +18,8 @@ class VideoProcessor:
             url (str): The URL of the video to download.
             identifier (str): A unique identifier for the video file.
             dtype (int): Device type; defines to which format convert the video.
+            audio_profile (int): defines what audio format to use for certain device types.
+            mono_audio (bool): If to use mono audio.
             sm (int): Scaling method; Look at reformat_video for details.
             width (int): The minimum desired width of the video.
             height (int): The minimum desired height of the video.
@@ -34,6 +37,8 @@ class VideoProcessor:
         self.fps = fps
         self.allow_streaming = allow_streaming
         self.duration = duration
+        self.audio_profile = audio_profile
+        self.mono_audio = mono_audio
 
         self.progress = ""
         self.res = None
@@ -56,8 +61,25 @@ class VideoProcessor:
                 f"+bestaudio/mp4/bestaudio"
             )
 
+            result = subprocess.run(["yt-dlp", "-f", format_filter, "--print-json", "--simulate", self.video_url], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            info = json.loads(result.stdout)
+
+            requested_formats = info.get("requested_formats")
+            if requested_formats:
+                # video + audio selected
+                has_video = any(f.get("vcodec") != "none" for f in requested_formats)
+                has_audio = any(f.get("acodec") != "none" for f in requested_formats)
+            else:
+                # single format selected (could be audio only)
+                has_video = info.get("vcodec") != "none"
+                has_audio = info.get("acodec") != "none"
+
+            if has_audio and not has_video:
+                ffmpeg_cmd, file_ext = generate_ffmpeg_cmd_audio(video_path, self.dtype, self.audio_profile, self.mono_audio)
+            else:
+                ffmpeg_cmd, file_ext = generate_ffmpeg_cmd(video_path, self.sm, self.dtype, self.width, self.height, self.fps, self.allow_streaming, self.mono_audio)
+
             ydl_cmd = ["yt-dlp", "--quiet", "-f", format_filter, "-o", "-", self.video_url]
-            ffmpeg_cmd, file_ext = generate_ffmpeg_cmd(video_path, self.sm, self.dtype, self.width, self.height, self.fps, self.allow_streaming)
 
             self.processes.append(subprocess.Popen(ydl_cmd, stdout=subprocess.PIPE))
             self.processes.append(subprocess.Popen(ffmpeg_cmd, stdin=self.processes[0].stdout, stderr=subprocess.PIPE,
@@ -73,7 +95,6 @@ class VideoProcessor:
             i = 0
 
             for line in self.processes[1].stderr:
-                print(line)
 
                 if len(speed_deque) < 3:
                     # Extract speed
@@ -185,7 +206,7 @@ def search_sc(query, max_results=10):
 
     return res
 
-def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps, streaming_requested):
+def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps, streaming_requested, mono_audio):
     """Convert video using ffmpeg with specific arguments
     Device types:
         0: Old android phone
@@ -231,12 +252,11 @@ def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps
     filters = []
     # Scaling logic
     if scale_method == 0:
-        if scale_method == 0:
-            filters.append(
-                f"scale='min({screen_w},iw)':"
-                f"'min({screen_h},ih)':force_original_aspect_ratio=decrease,"
-                f"pad=ceil(iw/4)*4:ceil(ih/4)*4"
-            )
+        filters.append(
+            f"scale='min({screen_w},iw)':"
+            f"'min({screen_h},ih)':force_original_aspect_ratio=decrease,"
+            f"pad=ceil(iw/4)*4:ceil(ih/4)*4"
+        )
     elif scale_method == 1:
         filters.append((
             f"scale='if(gt(a,{screen_w}/{screen_h}),{screen_h}*a,{screen_w})':"
@@ -254,18 +274,19 @@ def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps
         audio_bitrate = config_instance.get("android_ab")
         file_ext = "3gp"
     elif device_type == 2:  # Java (3gp, h263 + AMR)
-        conv_args = ["-c:v", "h263", "-profile:v", "0", "-c:a", "libopencore_amrnb", "-ac", "1",
-                     "-ar", "8000", "-metadata", "major_brand=3gp5", "-movflags", "+faststart", "-f", "3gp"]
+        conv_args = ["-c:v", "h263", "-profile:v", "0", "-c:a", "libopencore_amrnb", "-ar", "8000",
+                     "-metadata", "major_brand=3gp5", "-movflags", "+faststart", "-f", "3gp"]
         video_bitrate = config_instance.get("j2me_vb")
         audio_bitrate = config_instance.get("j2me_ab")
         file_ext = "3gp"
+        mono_audio = True
     elif device_type == 3:  # Symbian (3gp, mpeg4 + AAC)
         conv_args = ["-c:v", "mpeg4", "-ac", "1", "-c:a", "aac", "-movflags", "+faststart", "-f", "3gp"]
         video_bitrate = config_instance.get("symb_vb")
         audio_bitrate = config_instance.get("symb_ab")
         file_ext = "3gp"
     elif device_type == 4:  # Windows Mobile (asf, wmv2 + wmav2)
-        conv_args = ["-c:v", "wmv2", "-c:a", "wmav2", "-movflags", "+faststart", "-f", "asf"]
+        conv_args = ["-c:v", "wmv2", "-c:a", "wmav2", "-f", "asf"]
         video_bitrate = config_instance.get("wm_vb")
         audio_bitrate = config_instance.get("wm_ab")
         file_ext = "wmv"
@@ -285,8 +306,11 @@ def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps
         conv_args[-1] = "matroska"
         file_ext = "mkv"
 
+    if mono_audio:
+        conv_args.extend(["-ac", "1"])
+
     command = [
-        "ffmpeg",
+        "ffmpeg", "-y",
         "-i", "pipe:0",
         "-preset", "fast",
         "-max_muxing_queue_size", "9999",
@@ -294,9 +318,36 @@ def generate_ffmpeg_cmd(path, scale_method, device_type, screen_w, screen_h, fps
         "-b:a", audio_bitrate,
         "-r", str(fps),
         *conv_args, *scale_args,
-        "-y", os.path.join(path, f"result.{file_ext}")
+        os.path.join(path, f"result.{file_ext}")
     ]
     return command, file_ext
+
+def generate_ffmpeg_cmd_audio(path, device_type, audio_profile, mono):
+    file_ext = "mp3"
+    if device_type == 2 and audio_profile == 2:
+        # AMR_NB for basic feature phones
+        conv_args = ["-c:a", "libopencore_amrnb", "-b:a", "12.2k", "-ar", "8000", "-f", "3gp"]
+        file_ext = "3gp"
+        mono = True
+    elif device_type == 2 and audio_profile == 1:
+        # low bitrate MP3 for media-capable feature phones
+        conv_args = ["-ar", "22050", "-b:a", "64k", "-f", "mp3"]
+    elif device_type == 5 and audio_profile == 2:
+        # 8-bit WAV for slow Win95 PCs
+        conv_args = ["-acodec", "pcm_u8", "-ar", "11025", "-f", "wav"]
+        file_ext = "wav"
+        mono = True
+    elif device_type == 5 and audio_profile == 1:
+        # 16-bit WAV for average Win95 PCs
+        conv_args = ["-acodec", "pcm_s16le", "-ar", "22050", "-f", "wav"]
+        file_ext = "wav"
+    else:
+        # High bitrate MP3
+        conv_args = ["-b:a", "128k", "-f", "mp3"]
+    if mono:
+        conv_args.extend(["-ac", "1"])
+
+    return ["ffmpeg", "-y", "-i", "pipe:0", *conv_args, os.path.join(path, f"result.{file_ext}")], file_ext
 
 def recontainer_video(path, device_type):
     if device_type > 4:
