@@ -31,7 +31,7 @@ def handle_conversion(request_args, client_arp, self_arp):
         mono = request_args.get("mono") == "1"
         fp = request_args.get("fp") == "1"
     except ValueError as e:
-        # print(e)
+        # logging.error(e)
         return {"error": str(e)}
 
     if not duration:
@@ -116,6 +116,11 @@ def create_server(self_arp):
         query = request.args.get('q')
         identifier = request.args.get('i')
         th = request.args.get('th')
+        try:
+            max_res = int(request.args.get('maxres'))
+        except:
+            max_res = 10
+        page = tools_web.validate_int_arg(request.args.to_dict(), "page")
         isc = request.args.get('isc') == "1"  # isc stands for "is SoundCloud"
         if th:
             Cleaner().remove_content_at(os.path.join("thumbnails", identifier))
@@ -129,9 +134,9 @@ def create_server(self_arp):
             return jsonify({"error": "Not a valid uuid."}), 403
 
         if not isc:
-            res = tools.search(query)
+            res = tools.search(query, page, max_res)
         else:
-            res = tools.search_sc(query)
+            res = tools.search_sc(query, page, max_res)
         return res
 
     @app.route('/api/convert_thumbnail', methods=['GET'])
@@ -217,6 +222,7 @@ def create_server(self_arp):
     @app.route('/wap/search-res', methods=['GET'])
     def serve_wap_search_res():
         query = request.args.get("q")
+        page = tools_web.validate_int_arg(request.args.to_dict(), "page")
         isc = 1 if request.args.get("isc") == "1" else 0
         if not query:
             return Response("Missing query", status=400, mimetype="text/plain")
@@ -227,25 +233,21 @@ def create_server(self_arp):
 
         # since searching requires UUID, generate one
         identifier = uuid.uuid4()
-        results_json = requests.get(f"http://127.0.0.1:5001/api/search?i={identifier}&th=0&isc={isc}&q={query}").json()
+        results_json = requests.get(f"http://127.0.0.1:5001/api/search?i={identifier}&page={page}&th=0&maxres=5&isc={isc}&q={query}").json()
 
         results_markup = []
         for video in results_json:
             results_markup.append(
-                '------<br/>\n'
-                '<anchor>'
+                f'<a href="settings?l={video["length"]}&amp;url={video["video_url"]}">'
                 f'{video["title"]}'
-                '<go href="settings" method="get">'
-                f'<postfield name="l" value="{video["length"]}"/>'
-                f'<postfield name="url" value="{video["video_url"]}"/>'
-                '</go>'
-                '</anchor>'
-                '<br/>\n'
-                f'By {video["creator"]}<br/>\n'
-                f'{tools_web.seconds_to_readable(video["length"])}<br/>\n'
+                '</a><br/>'
+                f'By {video["creator"]}<br/>'
+                f'{tools_web.seconds_to_readable(video["length"])}<br/>'
             )
 
-        res = tools_web.render_template("SearchResults.wml", {"~1": "\n".join(results_markup)})
+
+        swap_dict = {"~1": "---<br/>".join(results_markup), "~6": str(page), "~4": query, "~2": str(isc), "~3": str(max(0, page-1)), "~5": str(page+1)}
+        res = tools_web.render_template("SearchResults.wml", swap_dict)
 
         return Response(res, mimetype="text/vnd.wap.wml")
 
@@ -261,7 +263,6 @@ def create_server(self_arp):
         if not request.args.get("i"):
             swap_dict["~2"] = str(uuid.uuid4())
         res = tools_web.render_error_settings_wml("VideoSettings.wml", request, swap_dict)
-        print(len(res.encode()))
 
         return Response(res, mimetype="text/vnd.wap.wml")
 
@@ -341,6 +342,7 @@ def create_server(self_arp):
     def serve_html_search_res():
         query = request.args.get("q")
         isc = 1 if request.args.get("isc") == "1" else 0
+        page = tools_web.validate_int_arg(request.args.to_dict(), "page")
         if not query:
             return Response("Missing query", status=400, mimetype="text/plain")
 
@@ -352,18 +354,23 @@ def create_server(self_arp):
 
         # since searching requires UUID, generate one
         identifier = uuid.uuid4()
-        results_json = requests.get(f"http://127.0.0.1:5001/api/search?i={identifier}&th=0&isc={isc}&q={query}").json()
+        results_json = requests.get(f"http://127.0.0.1:5001/api/search?i={identifier}&page={page}&th=0&isc={isc}&q={query}").json()
 
         results_markup = []
-        page = "convert" if request.cookies.get("w") else "settings"
+        redirect_page = "convert" if request.cookies.get("w") else "settings"
         for video in results_json:
             results_markup.append(
-                f'<a href="/html/{page}?l={video["length"]}&i={identifier}&url={video["video_url"]}">{video["title"]}</a>\n'
+                f'<a href="/html/{redirect_page}?l={video["length"]}&i={identifier}&url={video["video_url"]}">{video["title"]}</a>\n'
                 f'<p>By {video["creator"]}</p>\n'
                 f'<p>{tools_web.seconds_to_readable(video["length"])}</p>\n'
             )
 
-        res = tools_web.render_template("SearchResults.html", {"~1": "<hr>\n".join(results_markup)})
+        swap_dict = {"~1": "<hr>\n".join(results_markup),
+                     "~2": f"/html/search-res?isc={isc}&page={max(0, page - 1)}&q={query}",
+                     "~3": f"/html/search-res?isc={isc}&page={page + 1}&q={query}",
+                     "~4": str(page)}
+
+        res = tools_web.render_template("SearchResults.html", swap_dict)
 
         return Response(res, mimetype="text/html")
 

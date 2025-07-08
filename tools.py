@@ -149,19 +149,22 @@ class VideoProcessor:
             proc.terminate()
 
 
-def search(query, max_results=10):
+def search(query, page=0, max_results=10):
+    start_index = max_results*page
+    end_index = start_index + max_results
+
     ydl_options = {
-        'quiet': True,  # Suppress yt-dlp output
-        'skip_download': True,  # Don't download videos
-        'extract_flat': True,  # Only extract metadata
+        'quiet': True,
+        'skip_download': True,
+        'extract_flat': True,
     }
 
     with yt_dlp.YoutubeDL(ydl_options) as ydl:
-        search_url = f"ytsearch{max_results}:{query}"
-        info = ydl.extract_info(search_url, download=False)
+        result = ydl.extract_info(f"ytsearch{end_index}:{query}", download=False)
+        entries = result['entries'][start_index:end_index]
 
     results = []
-    for idx, entry in enumerate(info.get('entries', [])):
+    for idx, entry in enumerate(entries):
         try:
             duration = int(entry.get('duration'))
         except TypeError:
@@ -175,16 +178,19 @@ def search(query, max_results=10):
         })
     return results
 
-def search_sc(query, max_results=10):
+def search_sc(query, page=0, max_results=10):
+    start_index = max_results*page
+    end_index = start_index + max_results
+
     ydl_opts = {
         'quiet': True,
-        'extract_flat': True,  # Don't download, just list
+        'extract_flat': True,
         'force_generic_extractor': False,
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        results = ydl.extract_info(f"scsearch{max_results}:{query}", download=False)
-        entries = results.get('entries', [])
+        results = ydl.extract_info(f"scsearch{end_index}:{query}", download=False)
+        entries = results['entries'][start_index:end_index]
 
     res = []
     for entry in entries:
