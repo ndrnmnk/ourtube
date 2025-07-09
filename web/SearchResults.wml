@@ -1,10 +1,12 @@
 <?xml version="1.0"?>
 <!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.0//EN"
-    "http://www.wapforum.org/DTD/wml_1.0.xml">
+"http://www.wapforum.org/DTD/wml_1.0.xml">
 <wml>
-  <card id="main" title="Search results">
-    <p>
-      ~1
-    </p>
-  </card>
+<card id="main" title="Search results"><p>
+Page: ~6
+<a href="search-res?isc=~2&amp;page=~3&amp;q=~4" method="get">Prev</a>
+<a href="search-res?isc=~2&amp;page=~5&amp;q=~4" method="get">Next</a>
+<br/>---<br/>
+~1
+</p></card>
 </wml>

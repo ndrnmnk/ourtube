@@ -26,9 +26,12 @@ def handle_conversion(request_args, client_arp, self_arp):
         height = tools_web.validate_int_arg(request_args, 'h')
         fps = tools_web.validate_int_arg(request_args, 'fps')
         sm = tools_web.validate_int_arg(request_args, 'sm')
-        fp = request_args.get("fp") == "1"
+        ap = tools_web.validate_int_arg(request_args, 'ap')
         duration = int(request_args.get("l", 0))
+        mono = request_args.get("mono") == "1"
+        fp = request_args.get("fp") == "1"
     except ValueError as e:
+        # logging.error(e)
         return {"error": str(e)}
 
     if not duration:
@@ -41,7 +44,7 @@ def handle_conversion(request_args, client_arp, self_arp):
         video_url = "https://www.youtube.com/watch?v=XA8I5AG_7to"
 
     Cleaner().remove_content_at(os.path.join("videos", identifier))
-    conv_tasks[identifier] = tools.VideoProcessor(video_url, identifier, dtype, sm, width, height, fps, fp, duration)
+    conv_tasks[identifier] = tools.VideoProcessor(video_url, identifier, dtype, ap, mono, sm, width, height, fps, fp, duration)
     conv_tasks[identifier].start_conversion()
 
     return {"identifier": identifier, "duration": duration}
@@ -113,6 +116,11 @@ def create_server(self_arp):
         query = request.args.get('q')
         identifier = request.args.get('i')
         th = request.args.get('th')
+        try:
+            max_res = int(request.args.get('maxres'))
+        except:
+            max_res = 10
+        page = tools_web.validate_int_arg(request.args.to_dict(), "page")
         isc = request.args.get('isc') == "1"  # isc stands for "is SoundCloud"
         if th:
             Cleaner().remove_content_at(os.path.join("thumbnails", identifier))
@@ -126,9 +134,9 @@ def create_server(self_arp):
             return jsonify({"error": "Not a valid uuid."}), 403
 
         if not isc:
-            res = tools.search(query)
+            res = tools.search(query, page, max_res)
         else:
-            res = tools.search_sc(query)
+            res = tools.search_sc(query, page, max_res)
         return res
 
     @app.route('/api/convert_thumbnail', methods=['GET'])
@@ -162,7 +170,9 @@ def create_server(self_arp):
             "mp4": "video/mp4",
             "3gp": "video/3gpp",
             "wmv": "video/x-ms-wmv",
-            "mpg": "video/mpeg"
+            "mpg": "video/mpeg",
+            "wav": "audio/x-wav",
+            "mp3": "audio/mpeg"
         }
         mt = mime_types.get(ext.lower(), "application/octet-stream")
 
@@ -212,6 +222,8 @@ def create_server(self_arp):
     @app.route('/wap/search-res', methods=['GET'])
     def serve_wap_search_res():
         query = request.args.get("q")
+        page = tools_web.validate_int_arg(request.args.to_dict(), "page")
+        isc = 1 if request.args.get("isc") == "1" else 0
         if not query:
             return Response("Missing query", status=400, mimetype="text/plain")
 
@@ -221,25 +233,21 @@ def create_server(self_arp):
 
         # since searching requires UUID, generate one
         identifier = uuid.uuid4()
-        results_json = requests.get(f"http://127.0.0.1:5001/api/search?i={identifier}&q={query}&th=0").json()
+        results_json = requests.get(f"http://127.0.0.1:5001/api/search?i={identifier}&page={page}&th=0&maxres=5&isc={isc}&q={query}").json()
 
         results_markup = []
         for video in results_json:
             results_markup.append(
-                '------<br/>\n'
-                '<anchor>'
+                f'<a href="settings?l={video["length"]}&amp;url={video["video_url"]}">'
                 f'{video["title"]}'
-                '<go href="settings" method="get">'
-                f'<postfield name="l" value="{video["length"]}"/>'
-                f'<postfield name="url" value="{video["video_url"]}"/>'
-                '</go>'
-                '</anchor>'
-                '<br/>\n'
-                f'By {video["creator"]}<br/>\n'
-                f'{tools_web.seconds_to_readable(video["length"])}<br/>\n'
+                '</a><br/>'
+                f'By {video["creator"]}<br/>'
+                f'{tools_web.seconds_to_readable(video["length"])}<br/>'
             )
 
-        res = tools_web.render_template("SearchResults.wml", {"~1": "\n".join(results_markup)})
+
+        swap_dict = {"~1": "---<br/>".join(results_markup), "~6": str(page), "~4": query, "~2": str(isc), "~3": str(max(0, page-1)), "~5": str(page+1)}
+        res = tools_web.render_template("SearchResults.wml", swap_dict)
 
         return Response(res, mimetype="text/vnd.wap.wml")
 
@@ -250,9 +258,9 @@ def create_server(self_arp):
             return Response("Missing url", status=400, mimetype="text/plain")
 
         swap_dict = {}
-        if not request.args.__contains__("l"):
+        if not request.args.get("l"):
             swap_dict["~3"] = tools.get_video_length(url)
-        if not request.args.__contains__("i"):
+        if not request.args.get("i"):
             swap_dict["~2"] = str(uuid.uuid4())
         res = tools_web.render_error_settings_wml("VideoSettings.wml", request, swap_dict)
 
@@ -269,7 +277,9 @@ def create_server(self_arp):
             return Response("Missing duration", status=400, mimetype="text/plain")
 
         if request.args.get("url"):
-            handle_conversion(request.args.to_dict(), arp(request.remote_addr), self_arp)
+            res = handle_conversion(request.args.to_dict(), arp(request.remote_addr), self_arp)
+            if "error" in res:
+                return Response(tools_web.render_error_settings_wml("InvalidInput.wml", request, {"~1": res["error"]}), mimetype="text/vnd.wap.wml")
 
         proc = conv_tasks[identifier]
         page_markup = [tools_web.progress_bar_gen(proc.progress) + "<br/>"]
@@ -331,27 +341,36 @@ def create_server(self_arp):
     @app.route('/html/search-res', methods=['GET'])
     def serve_html_search_res():
         query = request.args.get("q")
+        isc = 1 if request.args.get("isc") == "1" else 0
+        page = tools_web.validate_int_arg(request.args.to_dict(), "page")
         if not query:
             return Response("Missing query", status=400, mimetype="text/plain")
 
         sure = request.args.get("sure") == "1"
         if tools_web.is_url(query) and not sure:
             return Response(tools_web.render_template("UrlAction.html", {"~1": query, "~2": str(uuid.uuid4())}), mimetype="text/html")
+        if sure:
+            return url_for("html_convert", **request.args)
 
         # since searching requires UUID, generate one
         identifier = uuid.uuid4()
-        results_json = requests.get(f"http://127.0.0.1:5001/api/search?i={identifier}&q={query}&th=0").json()
+        results_json = requests.get(f"http://127.0.0.1:5001/api/search?i={identifier}&page={page}&th=0&isc={isc}&q={query}").json()
 
         results_markup = []
-        page = "convert" if request.cookies.get("w") else "settings"
+        redirect_page = "convert" if request.cookies.get("w") else "settings"
         for video in results_json:
             results_markup.append(
-                f'<a href="/html/{page}?l={video["length"]}&i={identifier}&url={video["video_url"]}">{video["title"]}</a>\n'
+                f'<a href="/html/{redirect_page}?l={video["length"]}&i={identifier}&url={video["video_url"]}">{video["title"]}</a>\n'
                 f'<p>By {video["creator"]}</p>\n'
                 f'<p>{tools_web.seconds_to_readable(video["length"])}</p>\n'
             )
 
-        res = tools_web.render_template("SearchResults.html", {"~1": "<hr>\n".join(results_markup)})
+        swap_dict = {"~1": "<hr>\n".join(results_markup),
+                     "~2": f"/html/search-res?isc={isc}&page={max(0, page - 1)}&q={query}",
+                     "~3": f"/html/search-res?isc={isc}&page={page + 1}&q={query}",
+                     "~4": str(page)}
+
+        res = tools_web.render_template("SearchResults.html", swap_dict)
 
         return Response(res, mimetype="text/html")
 
@@ -362,6 +381,7 @@ def create_server(self_arp):
     @app.route('/html/convert', methods=['GET'])
     def html_convert():
         conv_args = request.args.to_dict() | request.cookies.to_dict()
+
         if not conv_args.get("i"):
             return Response("Missing identifier", status=403, mimetype="text/plain")
         identifier = conv_args["i"]
@@ -369,7 +389,7 @@ def create_server(self_arp):
 
         if identifier not in conv_tasks:
             temp = handle_conversion(conv_args, arp(request.remote_addr), self_arp)
-            if temp.__contains__("error"):
+            if "error" in temp:
                 return Response(temp["error"], mimetype="text/plain")
             duration = temp["duration"]
             swap_list["4"] = f'<meta http-equiv="refresh" content="5;url=/html/convert?l={duration}&i={identifier}">'
@@ -394,11 +414,8 @@ def create_server(self_arp):
                                   time.time() + int(duration) * Config().get("video_lifetime_multiplier"))
             if file_ext != "err":
                 rtsp_url, http_url = tools_web.generate_links(request.host.split(':')[0], f"api/video/{identifier}.{file_ext}")
-                if proc.allow_streaming:
-                    links = ""
-                else:
-                    links = f'<a href="{rtsp_url}">Watch (RTSP)</a><br/>'
-                links = links + f'<a href="{http_url}">Watch (HTTP)</a>'
+                links = f'<a href="{rtsp_url}">Play (RTSP)</a><br/>'
+                links = links + f'<a href="{http_url}">Play (HTTP)</a>'
                 swap_list["~3"] = links
             else:
                 swap_list["~3"] = "<p>Msg: error occurred while converting video</p>"
@@ -417,6 +434,7 @@ def create_server(self_arp):
             resp = redirect("/html")
         if request.args.get("save-cookies") == "1":
             resp.set_cookie("fp", "0", max_age=60 * 60 * 24 * 365)
+            resp.set_cookie("mono", "0", max_age=60 * 60 * 24 * 365)
             error = False
             for item in request.args.items():
                 if item[0] not in ("save-cookies", "url", "l", "i"):
@@ -424,7 +442,8 @@ def create_server(self_arp):
                         if item[0] in ("w", "h", "fps"):
                             if int(item[1]) <= 0:
                                 error = True
-                    except:
+                    except Exception as e:
+                        logging.info(f"User entered invalid parameter: {e}")
                         error = True
                     resp.set_cookie(item[0], item[1], max_age=60*60*24*365)
             if error:

@@ -1,51 +1,68 @@
 <?xml version="1.0"?>
 <!DOCTYPE wml PUBLIC "-//WAPFORUM//DTD WML 1.0//EN"
-    "http://www.wapforum.org/DTD/wml_1.0.xml">
+"http://www.wapforum.org/DTD/wml_1.0.xml">
 <wml>
-  <card id="main" title="Settings">
-    <p>
-      Before converting, select target video settings.<br/>
-      Video width:<br/> <input name="width" type="text" size="4" value="~5"/><br/>
-      Video height:<br/> <input name="height" type="text" size="4" value="~6"/><br/>
-      Video fps:<br/> <input name="fps" type="text" size="2" value="~7"/><br/>
+    <card id="video" title="Settings: 1"><p>
+        Video width:<input name="w" value="~5"/><br/>
+        Height:<input name="h" value="~6"/><br/>
+        FPS:<input name="f" value="~7"/><br/>
 
-      Device type:<br/>
-      <select name="dtype" value="~4">
-        <option value="0">Old Android</option>
-        <option value="1">Generic new</option>
-        <option value="2">J2ME phone</option>
-        <option value="3">Symbian phone</option>
-        <option value="4">Windows PDA</option>
-      </select><br/>
+        Device type:
+        <select name="d" value="~4">
+            <option value="2">J2ME</option>
+            <option value="3">Symbian</option>
+            <option value="4">W.M. PDA</option>
+        </select><br/>
 
-      Scaling method:<br/>
-      <select name="sm" value="~8">
-        <option value="0">Stretch (keep AR)</option>
-        <option value="1">Crop</option>
-        <option value="2">Force Stretch</option>
-      </select><br/>
+        Scaling:
+        <select name="s" value="~8">
+            <option value="0">Stretch (Keep AR)</option>
+            <option value="1">Crop</option>
+            <option value="2">Force Stretch</option>
+        </select><br/>
 
-      Enable RTSP (fast!):<br/>
-      <select name="rtsp" value="~9">
-        <option value="1">Yes</option>
-        <option value="0">No</option>
-      </select><br/>
+        Fast RTSP:
+        <select name="r" value="~9">
+            <option value="1">Yes</option>
+            <option value="0">No</option>
+        </select><br/>
 
-      <anchor>
-        Convert
+        <anchor>
+          Next
+          <go href="#audio" />
+        </anchor>
+
+    </p></card>
+    <card id="audio" title="Settings:2"><p>
+        Audio settings:<br/>
+        Profile:
+        <select name="a" value="~#">
+            <option value="0">High</option>
+            <option value="1">Mid</option>
+            <option value="2">Low</option>
+        </select><br/>
+
+        Mono:
+        <select name="m" value="~q">
+            <option value="1">Yes</option>
+            <option value="0">No</option>
+        </select><br/>
+
+        <anchor>
+        Start conv.
         <go href="convert" method="get">
-          <postfield name="i" value="~2"/>
-          <postfield name="l" value="~3"/>
-          <postfield name="dtype" value="$(dtype)"/>
-          <postfield name="w" value="$(width)"/>
-          <postfield name="h" value="$(height)"/>
-          <postfield name="fps" value="$(fps)"/>
-          <postfield name="sm" value="$(sm)"/>
-          <postfield name="fp" value="$(rtsp)"/>
-          <postfield name="url" value="~0"/>
+            <postfield name="dtype" value="$(d)"/>
+            <postfield name="ap" value="$(a)"/>
+            <postfield name="w" value="$(w)"/>
+            <postfield name="h" value="$(h)"/>
+            <postfield name="fps" value="$(f)"/>
+            <postfield name="sm" value="$(s)"/>
+            <postfield name="fp" value="$(r)"/>
+            <postfield name="mono" value="$(m)"/>
+            <postfield name="i" value="~2"/>
+            <postfield name="l" value="~3"/>
+            <postfield name="url" value="~0"/>
         </go>
-      </anchor>
-
-    </p>
-  </card>
+        </anchor>
+    </p></card>
 </wml>

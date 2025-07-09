@@ -14,6 +14,8 @@
           <postfield name="sm" value="~8"/>
           <postfield name="fp" value="~9"/>
           <postfield name="url" value="~0"/>
+          <postfield name="ap" value="~#"/>
+          <postfield name="mono" value="~q"/>
       </go>
     </onevent>
     <timer value="50"/>

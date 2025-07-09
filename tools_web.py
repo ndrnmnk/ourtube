@@ -9,8 +9,13 @@ def generate_links(host, path):
 
 def validate_int_arg(request, arg_name):
     val = request.get(arg_name)
+    max_limit = 200 if arg_name == "fps" else 9999
     try:
-        return int(val)
+        t = int(val)
+        if max_limit > t:
+            return t
+        else:
+            raise ValueError
     except (TypeError, ValueError):
         raise ValueError(f"Invalid value for '{arg_name}': {val}")
 
@@ -65,12 +70,13 @@ def render_error_settings_wml(template, request, swap_dict=None):
     swap_dict["~2"] =  request.args.get('i') or swap_dict["~2"]
     swap_dict["~3"] = request.args.get('l') or swap_dict["~3"]
     swap_dict["~4"] = request.args.get('dtype') or "2"
+    swap_dict["~#"] = request.args.get('ap') or "2"
     swap_dict["~5"] = request.args.get('w') or "128"
     swap_dict["~6"] = request.args.get('h') or "96"
     swap_dict["~7"] = request.args.get('fps') or "12"
     swap_dict["~8"] = request.args.get('sm') or "1"
     swap_dict["~9"] = request.args.get('fp') or "1"
-    print(swap_dict)
+    swap_dict["~q"] = request.args.get('mono') or "1"
     res = render_template(template, swap_dict)
     return res
 
@@ -115,12 +121,27 @@ def render_settings_html_template(template, request):
             sm_markup = sm_markup + f"    <option value={i} selected>{sms[i]}</option>\n"
     sm_markup = sm_markup + "</select>"
 
+    aps = ["High", "Mid", "Low"]
+    ap_markup = '<select name="ap">\n'
+    if request.cookies.get('ap'):
+        selected_ap = int(request.cookies.get('ap'))
+    else:
+        selected_ap = 0
+    for i in range(3):
+        if i != selected_ap:
+            ap_markup = ap_markup + f"    <option value={i}>{aps[i]}</option>\n"
+        else:
+            ap_markup = ap_markup + f"    <option value={i} selected>{aps[i]}</option>\n"
+    ap_markup = ap_markup + "</select>"
+
     swap_dict["~7"] = sm_markup
     swap_dict["~8"] = dtype_markup
-    if request.cookies.get("fp"):
-        swap_dict["~9"] = '<input type="checkbox" name="fp" value="1" checked> Enable RTSP (fast!)'
-    else:
-        swap_dict["~9"] = '<input type="checkbox" name="fp" value="1"> Enable RTSP (fast!)'
+    swap_dict["~q"] = ap_markup
+
+    temp = "checked" if request.cookies.get("fp") == "1" else ""
+    swap_dict["~9"] = f'<input type="checkbox" name="fp" value="1" {temp}> Enable RTSP (fast!)'
+    temp = "checked" if request.cookies.get("mono") == "1" else ""
+    swap_dict["~@"] = f'<input type="checkbox" name="mono" value="1" {temp}> Always mono audio'
 
     if request.args.get("error"):
         swap_dict["~0"] = "<b>Invalid input. Text fields only accept integers above 0</b>"

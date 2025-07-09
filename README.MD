@@ -13,8 +13,8 @@
 - Compatible with J2ME phones (tested on **Nokia 6300** and **Nokia N85**)
 - WAP & HTML websites for other devices
 - Server handles:
-  - YouTube search
-  - Video playback from YouTube and other yt-dlp supported websites via HTTP progressive download and RTSP
+  - YouTube and SoundCloud search
+  - Video playback yt-dlp supported websites via HTTP progressive download and RTSP
   - Thumbnail loading (Android only)
 - Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for fetching content and [FFmpeg](https://ffmpeg.org/) for transcoding
 - **No login or API key required**
@@ -44,7 +44,7 @@ You’ll see both your local and public IP printed on launch — those will be u
 Download the client from the [Releases](https://github.com/ndrnmnk/ourtube/releases) tab and transfer it to your device.  
 After installing it, enter the server IP. On Android, click `Settings` to see field for it.
 
-Now, you should be able to watch videos, but it's recommended to play with other settings.
+Now, you should be able to watch videos and listen to music, but it's recommended to play with other settings.
 
 ---
 
@@ -58,18 +58,7 @@ If your device supports `mpeg4` (e.g., Symbian-based phones), enable it to get b
 Some devices do support `h264` codec, which completely avoids conversion, significantly reducing wait times. 
 You should try enabling it in the settings.
 
-Fast playback (dropdown one) is really unstable with built-in player.
-You can use RTSP with VLC, but MKV isn't really usable.
-
----
-
-## How It Works
-
-1. The server receives a search query or video URL.
-2. It uses `yt-dlp` to fetch video content and metadata.
-3. The video is piped directly into `FFmpeg`, which converts it to a format supported by low-end devices.
-4. The transcoded file is temporarily saved to disk and served to the client via HTTP (progressive download) and RTSP.
-5. The file is deleted after a short period.
+RTSP can significantly reduce wait times, but it works only with external players and sacrifices seeking.
 
 ---
 

@@ -7,7 +7,13 @@
     <p>Welcome to Ourtube!</p>
     <p>Search to start:</p>
     <form action="/html/search-res" method="GET">
+        <input type="hidden" name="page" value="0">
+
         <input type="text" name="q">
+        <p>Search in:</p>
+        <input type="radio" name="isc" value="0" checked> YouTube <br>
+        <input type="radio" name="isc" value="1"> SoundCloud
+        <br><br>
         <input type="submit" value="Search">
     </form>
     <br>
