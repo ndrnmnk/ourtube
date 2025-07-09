@@ -1,9 +1,10 @@
 # OurTube
 
-**OurTube** is a lightweight media app designed for **Android devices** and **J2ME feature phones**. It enables users to search, stream, and watch videos from YouTube and other platforms on legacy hardware that normally can't access them.
+**OurTube** is a lightweight media app designed for **Android devices**, **J2ME feature phones** and everything else that can access the web.
+It enables users to search, stream, and watch videos from YouTube, SoundCloud and other platforms on legacy hardware that normally can't access them.
 
 > ⚠️ **Disclaimer**  
-> Using this software to download or stream content from YouTube or other websites may violate their respective Terms of Service.  
+> Using this software to download or stream content may violate their respective Terms of Service.  
 > This project is intended for educational and personal use only. The maintainers are not responsible for any misuse and do not condone illegal or unauthorized use of the software.
 ---
 
@@ -14,10 +15,11 @@
 - WAP & HTML websites for other devices
 - Server handles:
   - YouTube and SoundCloud search
-  - Video playback yt-dlp supported websites via HTTP progressive download and RTSP
+  - Playback from yt-dlp supported websites via HTTP progressive download and RTSP
   - Thumbnail loading (Android only)
-- Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for fetching content and [FFmpeg](https://ffmpeg.org/) for transcoding
 - **No login or API key required**
+
+It uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for fetching content and [FFmpeg](https://ffmpeg.org/) for transcoding.
 
 ---
 
@@ -60,8 +62,22 @@ You should try enabling it in the settings.
 
 RTSP can significantly reduce wait times, but it works only with external players and sacrifices seeking.
 
+### Notes for website users
+
+Website can be accessed at `http://{your_ip}:5001/html` and WAP version at `http://{your_ip}:5001/wap`.  
+It's heavily recommended to use HTML version if possible for better experience.
+
+Cookies in HTML version aren't necessary - they just save settings, so you don't have to re-enter these every time.
+
+### Known bugs
+
+- "Load more" button introduces duplicate results (unfixable)
+- Random errors with some specific URLs
+
 ---
 
 ## Footage
+
+Outdated, now it's a bit faster
 
 ![Demo](https://raw.githubusercontent.com/ndrnmnk/ndrnmnk/main/ourtube.gif)
