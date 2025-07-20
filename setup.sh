@@ -1,7 +1,6 @@
 #!/bin/bash
 
-mkdir -p videos;
-mkdir -p thumbnails;
+mkdir -p cache;
 python3 -m venv venv;
 venv/bin/pip install -r requirements.txt;
 git clone https://github.com/ndrnmnk/DeadRTSP;

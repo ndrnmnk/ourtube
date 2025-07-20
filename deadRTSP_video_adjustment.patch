@@ -14,7 +14,7 @@ index ba00b47..07ab874 100644
  def choose_video(request):
 -    return "video.mp4"
 +    pattern = re.compile(
-+        r'/video/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-'
++        r'/playback/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-'
 +        r'[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.(\w+)'
 +    )
 +
@@ -23,7 +23,7 @@ index ba00b47..07ab874 100644
 +    ext = match.group(2)
 +
 +    OURTUBE_PROJECT_ROOT = ".."
-+    return os.path.join(OURTUBE_PROJECT_ROOT, "videos", uuid, f"result.{ext}")
++    return os.path.join(OURTUBE_PROJECT_ROOT, "cache", "content", uuid, f"result.{ext}")
  
  
  # EDIT THIS LIST TO INCLUDE YOUR LEGACY DEVICE IF IT DOESN'T WORK AS-IS

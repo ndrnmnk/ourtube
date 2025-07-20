@@ -1,22 +1,65 @@
-# BITRATES
-
-# vb - video bitrate, ab - audio bitrate
-# Android:
-android_vb: "1200k"
-android_ab: "128k"
-# Symbian:
-symb_vb: "700k"
-symb_ab: "96k"
-# Non-Symbian feature phones:
-j2me_vb: "100k"
-j2me_ab: "12.2k"
-# Windows Mobile PDAs:
-wm_vb: "384k"
-wm_ab: "64k"
-
 # These 2 are measured in seconds
 cleaner_interval: 300
 thumbnail_lifetime: 600
 
-
 "video_lifetime_multiplier": 3
+
+# This one has "On" and "Off" values
+rtsp: On
+
+# LOG LEVEL
+# from most info printed to least:
+# 10 - debug
+# 20 - info;
+# 30 - warning;
+# 40 - error; recommended to use
+# 50 - critical;
+log_level: 40
+
+
+# CONVERSION COMMANDS
+# This section is for contributors and advanced users only
+
+
+# [[conversion_command], video_bitrate, audio_bitrate, file_extension]
+video_conv_commands:
+  # Old Android, Internet tablets
+  - [["-c:v", "mpeg4", "-c:a", "aac", "-movflags", "+faststart", "-f", "3gp"], "1200k", "128k", "3gp"]
+  # Generic New
+  - [["-movflags", "+faststart", "-c:a", "aac", "-f", "mp4"], "0k", "128k", "mp4"]
+  # J2ME phone
+  - [["-c:v", "h263", "-c:a", "libopencore_amrnb", "-ar", "8000", "-movflags", "+faststart", "-f", "3gp"], "100k", "12.2k", "3gp"]
+  # Symbian
+  - [["-c:v", "mpeg4", "-ar", "22050", "-c:a", "aac", "-pix_fmt", "yuv420p", "-metadata", "major_brand=3gp5", "-f", "3gp"], "700k", "96k", "3gp"]
+  # Windows Mobile PDA
+  - [["-c:v", "wmv2", "-c:a", "wmav2", "-f", "asf"], "384k", "64k", "asf"]
+  # Windows 95 era PCs
+  - [["-c:v", "mpeg1video", "-maxrate", "300k", "-bufsize", "300k", "-bf", "0", "-g", "12", "-pix_fmt", "yuv420p", "-c:a", "mp2", "-ar", "22050", "-f", "mpeg"], "300k", "96k", "mpg"]
+  # Old Linux, Palm, most consoles etc.
+  - [["-c:v", "libxvid", "-vtag", "xvid", "-c:a", "mp3", "-f", "avi"], "400k", "96k", "avi"]
+  # BlackBerry, E-readers, PSP, iPhone
+  - [["-c:v", "libx264", "-profile:v", "baseline", "-level", "3.0", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", "-f", "mp4"], "1200k", "128k", "mp4"]
+  # Old macOS
+  - [["-c:v", "cinepak", "-c:a", "pcm_mulaw", "-f", "mov"], "300k", "96k", "mov"]
+  # IPod
+  - [[ "-c:v", "mpeg4", "-ar", "22050", "-c:a", "aac", "-movflags", "+faststart", "-f", "mp4"], "300k", "64k", "mp4"]
+  # IoT devices
+  - [["-c:v", "mjpeg", "-huffman", "optimal", "-c:a", "mp3", "-f", "avi"], "100k", "12.2k", "avi"]
+
+audio_conv_commands:
+# [[conversion_command], file_extension]
+
+  # Generic new
+  - [["-c:a", "libmp3lame", "-ar", "44100", "-b:a", "128k", "-f", "mp3"], "mp3"]
+  # J2ME, low profile
+  - [["-c:a", "libopencore_amrnb", "-b:a", "12.2k", "-ar", "8000", "-metadata", "major_brand=3gp5", "-f", "3gp"], "3gp"]
+  # E-readers, MP3 players, medium profile J2ME
+  - [["-c:a", "libmp3lame", "-ar", "22050", "-b:a", "64k", "-f", "mp3"], "mp3"]
+  # Windows 95, low profile (also works with IoT devices)
+  - [["-c:a", "pcm_mulaw", "-ar", "8000", "-f", "wav"], "wav"]
+  # Windows 95, mid profile
+  - [["-c:a", "pcm_mulaw", "-ar", "22050", "-f", "wav"], "wav"]
+  # Old macOS
+  - [["-c:a", "pcm_s16be", "-ar", "22050", "-f", "aiff"], "aiff"]
+  # iPod
+  - [["-c:a", "aac", "-ar", "44100", "-b:a", "128k", "-movflags", "+faststart", "-f", "ipod"], "m4a"]

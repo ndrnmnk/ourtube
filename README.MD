@@ -1,10 +1,10 @@
 # OurTube
 
-**OurTube** is a lightweight media app designed for **Android devices**, **J2ME feature phones** and everything else that can access the web.
+**OurTube** is a lightweight media app designed for **Android devices**, **feature phones** and **everything** else that can access the web.
 It enables users to search, stream, and watch videos from YouTube, SoundCloud and other platforms on legacy hardware that normally can't access them.
 
 > ⚠️ **Disclaimer**  
-> Using this software to download or stream content may violate their respective Terms of Service.  
+> Using this software to download or stream content from media platforms may violate their respective Terms of Service.  
 > This project is intended for educational and personal use only. The maintainers are not responsible for any misuse and do not condone illegal or unauthorized use of the software.
 ---
 
@@ -12,7 +12,7 @@ It enables users to search, stream, and watch videos from YouTube, SoundCloud an
 
 - Works on Android version **1.0 to 15** (tested from Android 2.3.6 to 15)
 - Compatible with J2ME phones (tested on **Nokia 6300** and **Nokia N85**)
-- WAP & HTML websites for other devices
+- WAP 1.0 & HTML 3.2 websites for other devices
 - Server handles:
   - YouTube and SoundCloud search
   - Playback from yt-dlp supported websites via HTTP progressive download and RTSP
@@ -20,6 +20,10 @@ It enables users to search, stream, and watch videos from YouTube, SoundCloud an
 - **No login or API key required**
 
 It uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for fetching content and [FFmpeg](https://ffmpeg.org/) for transcoding.
+
+### Known bugs
+
+- "Load more" button introduces duplicate results (unfixable)
 
 ---
 
@@ -60,24 +64,21 @@ If your device supports `mpeg4` (e.g., Symbian-based phones), enable it to get b
 Some devices do support `h264` codec, which completely avoids conversion, significantly reducing wait times. 
 You should try enabling it in the settings.
 
-RTSP can significantly reduce wait times, but it works only with external players and sacrifices seeking.
+RTSP allows playback before full conversion (almost no wait time), but it works only with external players and sacrifices seeking.
 
 ### Notes for website users
 
-Website can be accessed at `http://{your_ip}:5001/html` and WAP version at `http://{your_ip}:5001/wap`.  
+Website can be accessed at `http://{your_ip}:5001/` and WAP version at `http://{your_ip}:5001/wap`.  
 It's heavily recommended to use HTML version if possible for better experience.
 
 Cookies in HTML version aren't necessary - they just save settings, so you don't have to re-enter these every time.
-
-### Known bugs
-
-- "Load more" button introduces duplicate results (unfixable)
-- Random errors with some specific URLs
 
 ---
 
 ## Footage
 
-Outdated, now it's a bit faster
+This was recorded with an office laptop with 10 Mbps internet.  
+Device doesn't support `h264` codec or `RTSP`.  
+Also note that thumbnails now load within 1-3 seconds.
 
 ![Demo](https://raw.githubusercontent.com/ndrnmnk/ndrnmnk/main/ourtube.gif)

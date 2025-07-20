@@ -8,7 +8,7 @@
       Search query:<br/> <input name="query" type="text" size="20"/><br/>
       <anchor>
         Search YT
-        <go href="wap/search-res" method="get">
+        <go href="search-res" method="get">
           <postfield name="q" value="$(query)"/>
           <postfield name="page" value="0"/>
         </go>
@@ -16,7 +16,7 @@
       <br/>
       <anchor>
         Search SC
-        <go href="wap/search-res" method="get">
+        <go href="search-res" method="get">
           <postfield name="q" value="$(query)"/>
           <postfield name="isc" value="1"/>
           <postfield name="page" value="0"/>

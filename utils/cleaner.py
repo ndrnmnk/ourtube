@@ -2,7 +2,7 @@ import sqlite3
 import logging
 import shutil
 import time
-from config import config_instance
+from utils.config import Config
 
 class Cleaner:
     _instance = None
@@ -14,7 +14,7 @@ class Cleaner:
 
     def __init__(self, db_path="data.db"):
         self.db_path = db_path
-        self.sleep_time = config_instance.get("cleaner_interval", 300)
+        self.sleep_time = Config().get("cleaner_interval", 300)
 
     def remove_content_at(self, content_path):
         try:

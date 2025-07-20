@@ -19,10 +19,8 @@ def arp(ip=None):
             return False
         else:
             if self_check:
-                print("Failed to retrieve ip information, meaning local network access. Exiting.")
+                print("Failed to retrieve ip information, meaning no internet access. Exiting.")
                 quit()
-            else:
-                print(f"Local network connection from {ip}")
 
     except requests.RequestException as e:
         print(f"Network error: {e}")

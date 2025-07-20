@@ -2,9 +2,15 @@ import os
 import re
 import uuid
 
+from utils.config import Config
+
 def generate_links(host, path):
-    rtsp_link = f"rtsp://{host}:8554/{path}"
     http_link = f"http://{host}:5001/{path}"
+    if Config().get("rtsp"):
+        rtsp_link = f"rtsp://{host}:8554/{path}"
+    else:
+        rtsp_link = http_link
+
     return rtsp_link, http_link
 
 def validate_int_arg(request, arg_name):
@@ -52,7 +58,7 @@ def render_template(filename, replacements):
     with open(os.path.join("web", filename)) as wap_file:
         template = wap_file.read()
     for key, value in replacements.items():
-        template = template.replace(key, value)
+        template = template.replace(key, str(value))
     return template
 
 def is_url(query):
@@ -95,51 +101,24 @@ def render_settings_html_template(template, request):
     swap_dict["~5"] = request.cookies.get("h") or "96"
     swap_dict["~6"] = request.cookies.get("fps") or "10"
 
-    dtypes = ["Old Android", "Generic new", "J2ME phone", "Symbian phone", "Windows PDA", "Windows 95 PC"]
-    dtype_markup = '<select name="dtype">\n'
-    if request.cookies.get('dtype'):
-        selected_dtype = int(request.cookies.get('dtype'))
-    else:
-        selected_dtype = 2
-    for i in range(6):
-        if i != selected_dtype:
-            dtype_markup = dtype_markup + f"    <option value={i}>{dtypes[i]}</option>\n"
-        else:
-            dtype_markup = dtype_markup + f"    <option value={i} selected>{dtypes[i]}</option>\n"
-    dtype_markup = dtype_markup + "</select>"
+    dtypes = ["Android", "Generic new", "J2ME phone", "Symbian", "Windows PDA", "Win95-era PC", "XVid device", "iPhone", "macOS device", "iPod", "IoT device"]
+    selected_dtype = int(request.cookies.get('dtype')) if request.cookies.get('dtype') else 2
+    dtype_markup = generate_html_select("dtype", dtypes, selected_dtype)
 
     sms = ["Stretch (keep AR)", "Crop", "Force stretch", "None"]
-    sm_markup = '<select name="sm">\n'
-    if request.cookies.get('sm'):
-        selected_sm = int(request.cookies.get('sm'))
-    else:
-        selected_sm = 1
-    for i in range(4):
-        if i != selected_sm:
-            sm_markup = sm_markup + f"    <option value={i}>{sms[i]}</option>\n"
-        else:
-            sm_markup = sm_markup + f"    <option value={i} selected>{sms[i]}</option>\n"
-    sm_markup = sm_markup + "</select>"
+    selected_sm = int(request.cookies.get('sm')) if request.cookies.get('sm') else 1
+    sm_markup = generate_html_select("sm", sms, selected_sm)
 
-    aps = ["High", "Mid", "Low"]
-    ap_markup = '<select name="ap">\n'
-    if request.cookies.get('ap'):
-        selected_ap = int(request.cookies.get('ap'))
-    else:
-        selected_ap = 0
-    for i in range(3):
-        if i != selected_ap:
-            ap_markup = ap_markup + f"    <option value={i}>{aps[i]}</option>\n"
-        else:
-            ap_markup = ap_markup + f"    <option value={i} selected>{aps[i]}</option>\n"
-    ap_markup = ap_markup + "</select>"
+    selected_ap = int(request.cookies.get('ap')) if request.cookies.get('ap') else 0
+    ap_markup = generate_html_select("ap", ["High", "Mid", "Low"], selected_ap)
 
     swap_dict["~7"] = sm_markup
     swap_dict["~8"] = dtype_markup
     swap_dict["~q"] = ap_markup
 
-    temp = "checked" if request.cookies.get("fp") == "1" else ""
-    swap_dict["~9"] = f'<input type="checkbox" name="fp" value="1" {temp}> Enable RTSP (fast!)'
+    selected_rtsp = int(request.cookies.get("fp")) if request.cookies.get("fp") else 0
+    swap_dict["~9"] = generate_html_select("fp", ["Off", "On", "Video only"], selected_rtsp)
+
     temp = "checked" if request.cookies.get("mono") == "1" else ""
     swap_dict["~@"] = f'<input type="checkbox" name="mono" value="1" {temp}> Always mono audio'
 
@@ -149,3 +128,13 @@ def render_settings_html_template(template, request):
         swap_dict["~0"] = ""
 
     return render_template(template, swap_dict)
+
+def generate_html_select(name, options, selected):
+    markup = f'<select name="{name}">\n'
+    for i in range(len(options)):
+        if i != selected:
+            markup = markup + f"<option value={i}>{options[i]}</option>\n"
+        else:
+            markup = markup + f"<option value={i} selected>{options[i]}</option>\n"
+    markup = markup + "</select>"
+    return markup
