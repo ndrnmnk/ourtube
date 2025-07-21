@@ -383,8 +383,13 @@ class VideoProcessor:
             if has_audio and not has_video:
                 self.allow_streaming = self.allow_streaming == 1
                 ffmpeg_cmd, file_ext = generate_ffmpeg_cmd_audio(video_path, self.dtype, self.audio_profile, self.mono_audio, self.allow_streaming)
-            else:
+            elif has_video:
+                if info.get("width") < info.get("height"):
+                    self.width, self.height = self.height, self.width
                 ffmpeg_cmd, file_ext = generate_ffmpeg_cmd_video(video_path, self.sm, self.dtype, self.width, self.height, self.fps, self.allow_streaming, self.mono_audio)
+            else:
+                self.res = "err"
+                return
 
             ydl_cmd = ["yt-dlp", "--quiet", "-f", format_filter, "-o", "-", self.video_url]
 
